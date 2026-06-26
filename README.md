@@ -34,7 +34,7 @@ Not all sensors are present at every station. The integration probes the API on 
 
 1. In Home Assistant, open **HACS → Integrations**
 2. Click the three-dot menu → **Custom repositories**
-3. Add `https://github.com/YOUR_GITHUB_USERNAME/waterlevel-ie-ha` as an **Integration**
+3. Add `https://github.com/macuistin/waterlevel-ie-ha` as an **Integration**
 4. Search for "Waterlevel.ie" and install it
 5. Restart Home Assistant
 
@@ -77,4 +77,4 @@ Please do not poll more frequently than every 15 minutes. See [waterlevel.ie/pag
 
 ## Contributing
 
-Issues and PRs welcome. Open an issue at the [issue tracker](https://github.com/YOUR_GITHUB_USERNAME/waterlevel-ie-ha/issues).
+Issues and PRs welcome. Open an issue at the [issue tracker](https://github.com/macuistin/waterlevel-ie-ha/issues).
