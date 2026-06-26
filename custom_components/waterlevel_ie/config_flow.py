@@ -4,6 +4,10 @@ import logging, re
 import aiohttp
 import voluptuous as vol
 from homeassistant import config_entries
+from homeassistant.helpers.selector import (
+    SelectSelector, SelectSelectorConfig, SelectSelectorMode,
+    TextSelector, TextSelectorConfig, TextSelectorType,
+)
 from .const import (
     DOMAIN, BASE_URL, STATION_PAGE_URL, SUMMARY_URL, GEOJSON_URL,
     SENSOR_TYPES, SUMMARY_SENSOR_TYPES,
@@ -47,7 +51,7 @@ async def _fetch_station_coords(
     session: aiohttp.ClientSession, station: str
 ) -> tuple[float, float] | None:
     """Return (latitude, longitude) for the station from the OPW GeoJSON, or None."""
-    padded = station.zfill(5)
+    padded = station.zfill(10)
     try:
         async with session.get(GEOJSON_URL, timeout=aiohttp.ClientTimeout(total=20)) as resp:
             if resp.status != 200:
@@ -180,11 +184,17 @@ class WaterlevelConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 return await self.async_step_select_station()
             else:
                 errors["base"] = "select_river_or_station"
+        group_options = [{"value": gid, "label": name} for gid, name in self._groups.items()]
         return self.async_show_form(
             step_id="user",
             data_schema=vol.Schema({
-                vol.Optional("group"): vol.In({gid: n for gid, n in self._groups.items()}),
-                vol.Optional(CONF_STATION): str,
+                vol.Optional("group"): SelectSelector(SelectSelectorConfig(
+                    options=group_options,
+                    mode=SelectSelectorMode.DROPDOWN,
+                )),
+                vol.Optional(CONF_STATION): TextSelector(TextSelectorConfig(
+                    type=TextSelectorType.TEXT,
+                )),
             }),
             errors=errors,
             description_placeholders={"groups_url": "https://waterlevel.ie/group/list/", "example": "14029"},
@@ -202,9 +212,15 @@ class WaterlevelConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             station_num = user_input.get(CONF_STATION, "")
             self._station_name_hint = self._stations.get(station_num)
             return await self._finish_with_station(station_num)
+        station_options = [{"value": sid, "label": name} for sid, name in self._stations.items()]
         return self.async_show_form(
             step_id="select_station",
-            data_schema=vol.Schema({vol.Required(CONF_STATION): vol.In(self._stations)}),
+            data_schema=vol.Schema({
+                vol.Required(CONF_STATION): SelectSelector(SelectSelectorConfig(
+                    options=station_options,
+                    mode=SelectSelectorMode.DROPDOWN,
+                )),
+            }),
             errors=errors,
             description_placeholders={"river_name": self._groups.get(self._selected_group, "selected river")},
         )
@@ -218,13 +234,25 @@ class WaterlevelConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         except ValueError:
             return self.async_show_form(
                 step_id="user",
-                data_schema=vol.Schema({vol.Optional("group"): vol.In(self._groups), vol.Optional(CONF_STATION): str}),
+                data_schema=vol.Schema({
+                    vol.Optional("group"): SelectSelector(SelectSelectorConfig(
+                        options=[{"value": gid, "label": name} for gid, name in self._groups.items()],
+                        mode=SelectSelectorMode.DROPDOWN,
+                    )),
+                    vol.Optional(CONF_STATION): TextSelector(TextSelectorConfig(type=TextSelectorType.TEXT)),
+                }),
                 errors={CONF_STATION: "station_not_found"},
             )
         except aiohttp.ClientError:
             return self.async_show_form(
                 step_id="user",
-                data_schema=vol.Schema({vol.Optional("group"): vol.In(self._groups), vol.Optional(CONF_STATION): str}),
+                data_schema=vol.Schema({
+                    vol.Optional("group"): SelectSelector(SelectSelectorConfig(
+                        options=[{"value": gid, "label": name} for gid, name in self._groups.items()],
+                        mode=SelectSelectorMode.DROPDOWN,
+                    )),
+                    vol.Optional(CONF_STATION): TextSelector(TextSelectorConfig(type=TextSelectorType.TEXT)),
+                }),
                 errors={"base": "cannot_connect"},
             )
         return self.async_create_entry(title=info[CONF_STATION_NAME], data=info)

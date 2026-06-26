@@ -13,7 +13,7 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 from .const import (
     DOMAIN, BASE_URL, SUMMARY_URL, GEOJSON_URL, SUMMARY_SENSOR_TYPES,
     CONF_STATION, CONF_STATION_NAME, CONF_AVAILABLE_SENSORS,
-    CONF_LATITUDE, CONF_LONGITUDE,
+    CONF_LATITUDE, CONF_LONGITUDE, THRESHOLD_ENTITIES,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -32,8 +32,10 @@ class WaterlevelCoordinator(DataUpdateCoordinator):
         self.available_sensors: list[str] = entry.data.get(CONF_AVAILABLE_SENSORS, [])
         self.latitude: float | None = entry.data.get(CONF_LATITUDE)
         self.longitude: float | None = entry.data.get(CONF_LONGITUDE)
-        # Flood threshold values set by the number entities (watch/alert/serious)
-        self._thresholds: dict[str, float | None] = {"watch": None, "alert": None, "serious": None}
+        # Flood threshold values — seeded from THRESHOLD_ENTITIES defaults, overridden by number entities
+        self._thresholds: dict[str, float | None] = {
+            key: cfg["default"] for key, cfg in THRESHOLD_ENTITIES.items()
+        }
         # Extra per-sensor metadata (e.g. last_reported, week_min/max, trend)
         self.sensor_attrs: dict[str, dict] = {}
         # Only attempt the GeoJSON coordinate fetch once per session
@@ -151,7 +153,7 @@ class WaterlevelCoordinator(DataUpdateCoordinator):
     async def _fetch_coords_if_missing(self) -> None:
         """Fetch GPS coordinates from the OPW GeoJSON if not stored at setup time."""
         self._coord_fetch_attempted = True
-        padded = self.station.zfill(5)
+        padded = self.station.zfill(10)
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.get(GEOJSON_URL, timeout=aiohttp.ClientTimeout(total=20)) as resp:
@@ -159,7 +161,7 @@ class WaterlevelCoordinator(DataUpdateCoordinator):
                         return
                     geo = await resp.json(content_type=None)
             for feature in geo.get("features", []):
-                ref = str(feature.get("properties", {}).get("ref", "")).zfill(5)
+                ref = str(feature.get("properties", {}).get("ref", ""))
                 if ref == padded:
                     lon, lat = feature["geometry"]["coordinates"]
                     self.latitude = float(lat)
