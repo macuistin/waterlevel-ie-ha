@@ -63,10 +63,13 @@ FLOOD_STAGE_ICONS = {
 }
 
 # Flood threshold number entities — one per stage
+# Default values are reasonable starting points for Irish river stations based on OPW
+# flood relief scheme engineering data for the River Barrow (Graiguenamanagh FRS).
+# Each station's datum is different — tune these to your specific gauge.
 THRESHOLD_ENTITIES = {
-    "watch":   {"name": "Watch Level",   "icon": "mdi:alert-outline",  "min": 0.0, "max": 15.0},
-    "alert":   {"name": "Alert Level",   "icon": "mdi:alert",          "min": 0.0, "max": 15.0},
-    "serious": {"name": "Serious Level", "icon": "mdi:alert-octagon",  "min": 0.0, "max": 15.0},
+    "watch":   {"name": "Watch Level",   "icon": "mdi:alert-outline",  "min": 0.0, "max": 15.0, "default": 1.50},
+    "alert":   {"name": "Alert Level",   "icon": "mdi:alert",          "min": 0.0, "max": 15.0, "default": 2.50},
+    "serious": {"name": "Serious Level", "icon": "mdi:alert-octagon",  "min": 0.0, "max": 15.0, "default": 3.50},
 }
 
 # Daily aggregate sensors derived from the summary CSV (Datetime,Value,Min,Mean,Max)
