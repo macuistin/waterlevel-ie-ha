@@ -2,7 +2,7 @@
 
 A custom Home Assistant integration that pulls real-time river gauge data from [waterlevel.ie](https://waterlevel.ie), operated by the Irish Office of Public Works (OPW).
 
-Each gauge station becomes a **device** in Home Assistant with its available sensors grouped underneath — water level, ordnance datum level, temperature, and battery voltage.
+Each gauge station becomes a **device** in Home Assistant with all its sensors, flood alerts, and threshold controls grouped underneath.
 
 ---
 
@@ -15,16 +15,46 @@ Each gauge station becomes a **device** in Home Assistant with its available sen
 - Add as many stations as you like — each becomes its own device
 - No YAML configuration required
 
-## Sensors
+---
+
+## Entities
+
+### Sensors
 
 | Sensor | Unit | Description |
 |---|---|---|
-| Water Level | m | Staff gauge level (relative to station datum) |
-| Water Level OD | m | Ordnance datum level (absolute height, Malin Head or Poolbeg) |
-| Temperature | °C | Sensor temperature — note: may read high in warm weather, not true water temperature |
-| Battery Voltage | V | Gauge battery — useful for alerting on low charge |
+| Water Level | m | Live staff gauge level (relative to station datum), updated every 15 min |
+| Water Level OD | m | Ordnance datum level — absolute height above Malin Head or Poolbeg sea level |
+| Temperature | °C | Sensor housing temperature. May read high in warm weather; not true water temperature |
+| Battery Voltage | V | Gauge battery level — useful for alerting on low charge |
+| Daily Mean Water Level | m | Rolling daily mean from the OPW summary CSV |
+| Daily Min Water Level | m | Rolling daily minimum |
+| Daily Max Water Level | m | Rolling daily maximum |
+| Flood Stage | — | Current flood stage: `normal`, `watch`, `alert`, or `serious` |
 
 Not all sensors are present at every station. The integration probes the API on setup and only creates entities for sensors that actually return data.
+
+### Binary Sensor
+
+| Entity | Description |
+|---|---|
+| Flood Alert | `On` when flood stage is watch, alert, or serious. Use this to trigger automations or notifications |
+
+### Number Entities (Flood Thresholds)
+
+Each station has three adjustable threshold entities that control when the flood stage changes:
+
+| Entity | Default | Description |
+|---|---|---|
+| Watch Level | 1.50 m | River rising — worth monitoring |
+| Alert Level | 2.50 m | Significant rise — prepare |
+| Serious Level | 3.50 m | Major flooding in progress |
+
+These are set per-station and persist across restarts. Adjust them directly from the device page in **Settings → Devices & Services**, or use them in dashboards as interactive controls. Default values are based on OPW flood relief scheme engineering data for the River Barrow — tune them to match your specific gauge and local conditions.
+
+### Map Support
+
+All entities expose `latitude` and `longitude` as state attributes. Stations appear automatically on Home Assistant map cards without any extra configuration.
 
 ---
 
