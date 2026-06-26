@@ -1,0 +1,12 @@
+{
+  "domain": "waterlevel_ie",
+  "name": "Waterlevel.ie (OPW Ireland)",
+  "codeowners": ["@macuistin"],
+  "config_flow": true,
+  "documentation": "https://github.com/macuistin/waterlevel-ie-ha",
+  "issue_tracker": "https://github.com/macuistin/waterlevel-ie-ha/issues",
+  "integration_type": "hub",
+  "iot_class": "cloud_polling",
+  "requirements": [],
+  "version": "1.0.0"
+}

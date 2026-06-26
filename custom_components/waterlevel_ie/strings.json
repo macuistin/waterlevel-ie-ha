@@ -1,0 +1,35 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Add a gauge station",
+        "description": "Pick a river from the dropdown to browse its stations, or enter a station number directly. Find all rivers at {groups_url}",
+        "data": {
+          "group": "River (browse stations)",
+          "station": "Station number (e.g. {example})"
+        },
+        "data_description": {
+          "group": "Choose a river to see its gauge stations in the next step.",
+          "station": "If you already know the station number, enter it here and skip the river picker."
+        }
+      },
+      "select_station": {
+        "title": "Select a station",
+        "description": "Choose a gauge station on the {river_name}.",
+        "data": {
+          "station": "Station"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Could not reach waterlevel.ie \u2014 check your internet connection.",
+      "invalid_station": "Station number must contain digits only.",
+      "station_not_found": "No sensor data found for that station. Verify it exists at waterlevel.ie.",
+      "select_river_or_station": "Select a river or enter a station number.",
+      "unknown": "Unexpected error \u2014 check the Home Assistant logs."
+    },
+    "abort": {
+      "already_configured": "This station is already configured."
+    }
+  }
+}
