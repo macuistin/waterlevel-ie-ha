@@ -1,0 +1,35 @@
+{
+  "entity": {
+    "sensor": {
+      "water_level": { "default": "mdi:waves-arrow-up" },
+      "backup_water_level": { "default": "mdi:waves-arrow-up" },
+      "water_level_od": { "default": "mdi:elevation-rise" },
+      "temperature": { "default": "mdi:thermometer-water" },
+      "battery_voltage": { "default": "mdi:battery" },
+      "signal_strength": { "default": "mdi:signal" },
+      "daily_mean_water_level": { "default": "mdi:waves-arrow-up" },
+      "daily_min_water_level": { "default": "mdi:arrow-collapse-down" },
+      "daily_max_water_level": { "default": "mdi:arrow-collapse-up" },
+      "flood_stage": {
+        "default": "mdi:waves",
+        "state": {
+          "normal": "mdi:waves",
+          "watch": "mdi:alert-outline",
+          "alert": "mdi:alert",
+          "serious": "mdi:alert-octagon"
+        }
+      }
+    },
+    "binary_sensor": {
+      "flood_alert": {
+        "default": "mdi:home-flood",
+        "state": { "off": "mdi:waves" }
+      }
+    },
+    "number": {
+      "watch_level": { "default": "mdi:alert-outline" },
+      "alert_level": { "default": "mdi:alert" },
+      "serious_level": { "default": "mdi:alert-octagon" }
+    }
+  }
+}

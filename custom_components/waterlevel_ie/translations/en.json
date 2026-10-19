@@ -14,6 +14,9 @@
         "description": "Pick the river or catchment the gauge is on.",
         "data": {
           "group": "River"
+        },
+        "data_description": {
+          "group": "The river or catchment the gauge is on, as listed on waterlevel.ie."
         }
       },
       "select_station": {
@@ -21,6 +24,9 @@
         "description": "Gauge stations on the {river_name}. Stations you have already added are not listed.",
         "data": {
           "station": "Station"
+        },
+        "data_description": {
+          "station": "The gauge station to add. Each station becomes its own device."
         }
       },
       "station_number": {
@@ -28,6 +34,9 @@
         "description": "Enter the station number (for example {example}) or paste the station's page address. You can look stations up at {stations_url}",
         "data": {
           "station": "Station number or address"
+        },
+        "data_description": {
+          "station": "The number shown on the station's waterlevel.ie page, or the page's address."
         }
       }
     },
@@ -41,6 +50,78 @@
     "abort": {
       "already_configured": "This station is already configured.",
       "cannot_load_rivers": "Could not load the river list from waterlevel.ie. Try again later, or add the station by its number instead."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "water_level": {
+        "name": "Water Level"
+      },
+      "backup_water_level": {
+        "name": "Backup Water Level"
+      },
+      "water_level_od": {
+        "name": "Water Level OD"
+      },
+      "temperature": {
+        "name": "Temperature"
+      },
+      "battery_voltage": {
+        "name": "Battery Voltage"
+      },
+      "signal_strength": {
+        "name": "Signal Strength"
+      },
+      "daily_mean_water_level": {
+        "name": "Daily Mean Water Level"
+      },
+      "daily_min_water_level": {
+        "name": "Daily Min Water Level"
+      },
+      "daily_max_water_level": {
+        "name": "Daily Max Water Level"
+      },
+      "flood_stage": {
+        "name": "Flood Stage",
+        "state": {
+          "normal": "Normal",
+          "watch": "Watch",
+          "alert": "Alert",
+          "serious": "Serious"
+        },
+        "state_attributes": {
+          "watch_level_m": {
+            "name": "Watch level"
+          },
+          "alert_level_m": {
+            "name": "Alert level"
+          },
+          "serious_level_m": {
+            "name": "Serious level"
+          }
+        }
+      }
+    },
+    "binary_sensor": {
+      "flood_alert": {
+        "name": "Flood Alert"
+      }
+    },
+    "number": {
+      "watch_level": {
+        "name": "Watch Level"
+      },
+      "alert_level": {
+        "name": "Alert Level"
+      },
+      "serious_level": {
+        "name": "Serious Level"
+      }
+    }
+  },
+  "exceptions": {
+    "update_failed": {
+      "message": "Could not read any data for station {station} from waterlevel.ie: {error}"
     }
   }
 }
