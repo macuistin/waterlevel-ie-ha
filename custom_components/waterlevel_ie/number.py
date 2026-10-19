@@ -1,11 +1,14 @@
 """Number platform for Waterlevel.ie — adjustable flood threshold entities."""
+
 from __future__ import annotations
-from homeassistant.components.number import NumberEntity, NumberMode, RestoreNumber
+
+from homeassistant.components.number import NumberMode, RestoreNumber
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
+
 from .const import DOMAIN, STATION_PAGE_URL, THRESHOLD_ENTITIES
 from .coordinator import WaterlevelCoordinator
 
@@ -17,10 +20,12 @@ async def async_setup_entry(
     # Only create threshold entities if the station has a water level sensor
     if "0001" not in coordinator.available_sensors:
         return
-    async_add_entities([
-        WaterlevelThresholdNumber(coordinator, key, cfg)
-        for key, cfg in THRESHOLD_ENTITIES.items()
-    ])
+    async_add_entities(
+        [
+            WaterlevelThresholdNumber(coordinator, key, cfg)
+            for key, cfg in THRESHOLD_ENTITIES.items()
+        ]
+    )
 
 
 def _make_device_info(coordinator: WaterlevelCoordinator) -> DeviceInfo:
@@ -65,9 +70,9 @@ class WaterlevelThresholdNumber(CoordinatorEntity, RestoreNumber):
     async def async_added_to_hass(self) -> None:
         """Restore the previous threshold value when HA starts."""
         await super().async_added_to_hass()
-        if (last_data := await self.async_get_last_number_data()) is not None:
-            if last_data.native_value is not None:
-                self.coordinator.set_threshold(self._threshold_key, float(last_data.native_value))
+        last_data = await self.async_get_last_number_data()
+        if last_data is not None and last_data.native_value is not None:
+            self.coordinator.set_threshold(self._threshold_key, float(last_data.native_value))
 
     @property
     def native_value(self) -> float | None:

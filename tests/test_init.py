@@ -1,4 +1,5 @@
 """Tests for setting up a Waterlevel.ie station."""
+
 from __future__ import annotations
 
 from homeassistant.config_entries import ConfigEntryState
@@ -24,7 +25,11 @@ async def test_setup_and_coords_backfill(
     # Unpadded ref: still matched to the station
     aioclient_mock.get(
         GEOJSON_URL,
-        json={"features": [{"properties": {"ref": "14029"}, "geometry": {"coordinates": [-6.95, 52.54]}}]},
+        json={
+            "features": [
+                {"properties": {"ref": "14029"}, "geometry": {"coordinates": [-6.95, 52.54]}}
+            ]
+        },
     )
     entry = MockConfigEntry(
         domain=DOMAIN,

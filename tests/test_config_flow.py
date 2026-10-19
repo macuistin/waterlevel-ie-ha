@@ -1,16 +1,19 @@
 """Tests for the Waterlevel.ie config flow."""
+
 from __future__ import annotations
 
 import aiohttp
-import pytest
 from homeassistant import config_entries
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
+import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 from pytest_homeassistant_custom_component.test_util.aiohttp import AiohttpClientMocker
 
 from custom_components.waterlevel_ie.config_flow import normalize_station
 from custom_components.waterlevel_ie.const import DOMAIN, GEOJSON_URL
+
+pytestmark = pytest.mark.usefixtures("mock_setup_entry")
 
 GROUP_LIST_HTML = """
 <a href="/group/7/">River Barrow - Water Levels</a>
@@ -88,7 +91,13 @@ async def test_station_number_creates_entry(
     assert result["data"] == {
         "station": "14029",
         "station_name": "Graiguenamanagh Upper",
-        "available_sensors": ["0001", "0002", "0001_daily_mean", "0001_daily_min", "0001_daily_max"],
+        "available_sensors": [
+            "0001",
+            "0002",
+            "0001_daily_mean",
+            "0001_daily_min",
+            "0001_daily_max",
+        ],
         "latitude": 52.54,
         "longitude": -6.95,
     }
@@ -104,17 +113,13 @@ async def test_station_number_invalid_then_valid(
     result = await hass.config_entries.flow.async_configure(
         result["flow_id"], {"next_step_id": "station_number"}
     )
-    result = await hass.config_entries.flow.async_configure(
-        result["flow_id"], {"station": "graig"}
-    )
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {"station": "graig"})
     assert result["type"] is FlowResultType.FORM
     assert result["step_id"] == "station_number"
     assert result["errors"] == {"station": "invalid_station"}
     assert result["description_placeholders"]["stations_url"]
 
-    result = await hass.config_entries.flow.async_configure(
-        result["flow_id"], {"station": "14029"}
-    )
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {"station": "14029"})
     assert result["type"] is FlowResultType.CREATE_ENTRY
 
 
@@ -130,9 +135,7 @@ async def test_station_number_not_found(
     result = await hass.config_entries.flow.async_configure(
         result["flow_id"], {"next_step_id": "station_number"}
     )
-    result = await hass.config_entries.flow.async_configure(
-        result["flow_id"], {"station": "99999"}
-    )
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {"station": "99999"})
     assert result["type"] is FlowResultType.FORM
     assert result["step_id"] == "station_number"
     assert result["errors"] == {"station": "station_not_found"}
@@ -153,9 +156,7 @@ async def test_station_number_already_configured(hass: HomeAssistant) -> None:
     assert result["reason"] == "already_configured"
 
 
-async def test_browse_by_river(
-    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
-) -> None:
+async def test_browse_by_river(hass: HomeAssistant, aioclient_mock: AiohttpClientMocker) -> None:
     aioclient_mock.get("https://waterlevel.ie/group/list/", text=GROUP_LIST_HTML)
     aioclient_mock.get("https://waterlevel.ie/group/7/", text=GROUP_7_HTML)
     _mock_station(aioclient_mock)
@@ -183,9 +184,7 @@ async def test_browse_by_river(
     options = result["data_schema"].schema["station"].config["options"]
     assert options == [{"value": "14029", "label": "Graiguenamanagh (14029)"}]
 
-    result = await hass.config_entries.flow.async_configure(
-        result["flow_id"], {"station": "14029"}
-    )
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {"station": "14029"})
     assert result["type"] is FlowResultType.CREATE_ENTRY
     # The river picker's name wins over the station page title
     assert result["title"] == "Graiguenamanagh"

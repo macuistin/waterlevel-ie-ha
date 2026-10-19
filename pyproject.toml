@@ -1,0 +1,38 @@
+[project]
+name = "waterlevel_ie"
+version = "1.1.0"
+requires-python = ">=3.13"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+testpaths = ["tests"]
+
+[tool.coverage.run]
+source = ["custom_components/waterlevel_ie"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+
+[tool.ruff.lint]
+select = [
+    "E", "F", "W",  # pycodestyle and pyflakes
+    "I",            # import order
+    "B",            # bugbear
+    "UP",           # pyupgrade
+    "SIM",          # simplify
+    "ASYNC",        # blocking calls in async code
+    "LOG",          # logging misuse
+    "PIE",
+    "RUF",
+]
+ignore = [
+    "RUF012",  # Home Assistant class attributes are mutable by design
+    "SIM105",  # try/except/pass reads more plainly than contextlib.suppress here
+]
+
+[tool.ruff.lint.isort]
+force-sort-within-sections = true
+known-first-party = ["custom_components.waterlevel_ie"]
+combine-as-imports = true

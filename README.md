@@ -121,9 +121,12 @@ Please do not poll more frequently than every 15 minutes. See [waterlevel.ie/pag
 
 Issues and PRs welcome. Open an issue at the [issue tracker](https://github.com/macuistin/waterlevel-ie-ha/issues).
 
-Run the tests with:
+Run the same checks as CI before opening a PR:
 
 ```bash
 pip install -r requirements_test.txt
-pytest
+ruff check . && ruff format --check .
+pytest --cov
 ```
+
+CI also runs [hassfest](https://developers.home-assistant.io/blog/2020/04/16/hassfest/) and the [HACS action](https://hacs.xyz/docs/publish/action/), and runs the tests against the minimum Home Assistant version in `hacs.json` as well as the latest release.

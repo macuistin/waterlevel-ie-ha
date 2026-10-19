@@ -1,20 +1,36 @@
 """Config flow for Waterlevel.ie — browse by river or enter a station number."""
+
 from __future__ import annotations
-import logging, re
+
+import logging
+import re
 from typing import Any
+
 import aiohttp
-import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.selector import (
-    SelectSelector, SelectSelectorConfig, SelectSelectorMode,
-    TextSelector, TextSelectorConfig, TextSelectorType,
+    SelectSelector,
+    SelectSelectorConfig,
+    SelectSelectorMode,
+    TextSelector,
+    TextSelectorConfig,
+    TextSelectorType,
 )
+import voluptuous as vol
+
 from .const import (
-    DOMAIN, BASE_URL, STATION_PAGE_URL, SUMMARY_URL,
-    SENSOR_TYPES, SUMMARY_SENSOR_TYPES,
-    CONF_STATION, CONF_STATION_NAME, CONF_AVAILABLE_SENSORS,
-    CONF_LATITUDE, CONF_LONGITUDE,
+    BASE_URL,
+    CONF_AVAILABLE_SENSORS,
+    CONF_LATITUDE,
+    CONF_LONGITUDE,
+    CONF_STATION,
+    CONF_STATION_NAME,
+    DOMAIN,
+    SENSOR_TYPES,
+    STATION_PAGE_URL,
+    SUMMARY_SENSOR_TYPES,
+    SUMMARY_URL,
 )
 from .coordinator import fetch_station_coords
 
@@ -50,7 +66,7 @@ async def _fetch_groups(session: aiohttp.ClientSession) -> dict[str, str]:
     groups: dict[str, str] = {}
     for m in re.finditer(r'href="/group/(\d+)/">([^<]+)</a>', html):
         gid, name = m.group(1), m.group(2).strip()
-        display = re.sub(r"\s*[-–]\s*water level.*$", "", name, flags=re.I).strip()
+        display = re.sub(r"\s*[-\u2013]\s*water level.*$", "", name, flags=re.I).strip()
         groups[gid] = display or name
     return dict(sorted(groups.items(), key=lambda kv: kv[1]))
 
@@ -91,9 +107,7 @@ async def _detect_station(
                 # Detect all sensor types by parsing table links on the station page.
                 # Links look like /0000014029/0001/ or /0000026021/0014/
                 # This is far more efficient than probing each sensor CSV individually.
-                page_codes = set(
-                    re.findall(r'/\d{10}/([A-Za-z0-9]+)/(?:week|day|summary)/', html)
-                )
+                page_codes = set(re.findall(r"/\d{10}/([A-Za-z0-9]+)/(?:week|day|summary)/", html))
                 for sensor_key in SENSOR_TYPES:
                     if sensor_key in page_codes:
                         available.append(sensor_key)
@@ -148,6 +162,7 @@ async def _detect_station(
 
 class WaterlevelConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Config flow: choose how to find a station, then add it."""
+
     VERSION = 1
 
     def __init__(self) -> None:
@@ -173,7 +188,8 @@ class WaterlevelConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             else:
                 configured = self._async_current_ids()
                 stations = {
-                    sid: name for sid, name in stations.items()
+                    sid: name
+                    for sid, name in stations.items()
                     if f"{DOMAIN}_{sid}" not in configured
                 }
                 if stations:
@@ -191,12 +207,18 @@ class WaterlevelConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 return self.async_abort(reason="cannot_load_rivers")
         return self.async_show_form(
             step_id="river",
-            data_schema=vol.Schema({
-                vol.Required(CONF_GROUP): SelectSelector(SelectSelectorConfig(
-                    options=[{"value": gid, "label": name} for gid, name in self._groups.items()],
-                    mode=SelectSelectorMode.DROPDOWN,
-                )),
-            }),
+            data_schema=vol.Schema(
+                {
+                    vol.Required(CONF_GROUP): SelectSelector(
+                        SelectSelectorConfig(
+                            options=[
+                                {"value": gid, "label": name} for gid, name in self._groups.items()
+                            ],
+                            mode=SelectSelectorMode.DROPDOWN,
+                        )
+                    ),
+                }
+            ),
             errors=errors,
         )
 
@@ -212,15 +234,19 @@ class WaterlevelConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 return result
         return self.async_show_form(
             step_id="select_station",
-            data_schema=vol.Schema({
-                vol.Required(CONF_STATION): SelectSelector(SelectSelectorConfig(
-                    options=[
-                        {"value": sid, "label": f"{name} ({sid})"}
-                        for sid, name in self._stations.items()
-                    ],
-                    mode=SelectSelectorMode.DROPDOWN,
-                )),
-            }),
+            data_schema=vol.Schema(
+                {
+                    vol.Required(CONF_STATION): SelectSelector(
+                        SelectSelectorConfig(
+                            options=[
+                                {"value": sid, "label": f"{name} ({sid})"}
+                                for sid, name in self._stations.items()
+                            ],
+                            mode=SelectSelectorMode.DROPDOWN,
+                        )
+                    ),
+                }
+            ),
             errors=errors,
             description_placeholders={
                 "river_name": self._groups.get(self._selected_group or "", "selected river"),
@@ -241,11 +267,15 @@ class WaterlevelConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         return self.async_show_form(
             step_id="station_number",
             data_schema=self.add_suggested_values_to_schema(
-                vol.Schema({
-                    vol.Required(CONF_STATION): TextSelector(TextSelectorConfig(
-                        type=TextSelectorType.TEXT,
-                    )),
-                }),
+                vol.Schema(
+                    {
+                        vol.Required(CONF_STATION): TextSelector(
+                            TextSelectorConfig(
+                                type=TextSelectorType.TEXT,
+                            )
+                        ),
+                    }
+                ),
                 user_input,
             ),
             errors=errors,

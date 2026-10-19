@@ -1,18 +1,23 @@
 """Sensor platform for Waterlevel.ie."""
+
 from __future__ import annotations
+
 from homeassistant.components.sensor import SensorDeviceClass, SensorEntity, SensorStateClass
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
-from .const import DOMAIN, STATION_PAGE_URL, ALL_SENSOR_TYPES, FLOOD_STAGE_ICONS
+
+from .const import ALL_SENSOR_TYPES, DOMAIN, FLOOD_STAGE_ICONS, STATION_PAGE_URL
 from .coordinator import WaterlevelCoordinator
 
 _DC_MAP = {"temperature": SensorDeviceClass.TEMPERATURE, "voltage": SensorDeviceClass.VOLTAGE}
 
 
-async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback) -> None:
+async def async_setup_entry(
+    hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
+) -> None:
     coordinator: WaterlevelCoordinator = hass.data[DOMAIN][entry.entry_id]
     entities = [WaterlevelSensor(coordinator, k) for k in coordinator.available_sensors]
     # Flood stage sensor is always created if water level is available

@@ -1,9 +1,10 @@
 """Data coordinator for the Waterlevel.ie integration."""
+
 from __future__ import annotations
 
 import asyncio
-import logging
 from datetime import timedelta
+import logging
 
 import aiohttp
 from homeassistant.config_entries import ConfigEntry
@@ -12,9 +13,17 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .const import (
-    DOMAIN, BASE_URL, SUMMARY_URL, GEOJSON_URL, SUMMARY_SENSOR_TYPES,
-    CONF_STATION, CONF_STATION_NAME, CONF_AVAILABLE_SENSORS,
-    CONF_LATITUDE, CONF_LONGITUDE, THRESHOLD_ENTITIES,
+    BASE_URL,
+    CONF_AVAILABLE_SENSORS,
+    CONF_LATITUDE,
+    CONF_LONGITUDE,
+    CONF_STATION,
+    CONF_STATION_NAME,
+    DOMAIN,
+    GEOJSON_URL,
+    SUMMARY_SENSOR_TYPES,
+    SUMMARY_URL,
+    THRESHOLD_ENTITIES,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -53,7 +62,7 @@ class WaterlevelCoordinator(DataUpdateCoordinator):
         self.available_sensors: list[str] = entry.data.get(CONF_AVAILABLE_SENSORS, [])
         self.latitude: float | None = entry.data.get(CONF_LATITUDE)
         self.longitude: float | None = entry.data.get(CONF_LONGITUDE)
-        # Flood threshold values — seeded from THRESHOLD_ENTITIES defaults, overridden by number entities
+        # Flood thresholds: THRESHOLD_ENTITIES defaults, overridden by the number entities
         self._thresholds: dict[str, float | None] = {
             key: cfg["default"] for key, cfg in THRESHOLD_ENTITIES.items()
         }
@@ -62,7 +71,8 @@ class WaterlevelCoordinator(DataUpdateCoordinator):
         # Only attempt the GeoJSON coordinate fetch once per session
         self._coord_fetch_attempted: bool = False
         super().__init__(
-            hass, _LOGGER,
+            hass,
+            _LOGGER,
             name=f"{DOMAIN}_{self.station}",
             update_interval=UPDATE_INTERVAL,
         )
@@ -89,9 +99,9 @@ class WaterlevelCoordinator(DataUpdateCoordinator):
         summary_keys = [k for k in self.available_sensors if k in SUMMARY_SENSOR_TYPES]
 
         # Fetch which source sensors need a summary CSV (deduplicated, order-stable)
-        summary_sources = list(dict.fromkeys(
-            SUMMARY_SENSOR_TYPES[k]["summary_source"] for k in summary_keys
-        ))
+        summary_sources = list(
+            dict.fromkeys(SUMMARY_SENSOR_TYPES[k]["summary_source"] for k in summary_keys)
+        )
 
         session = async_get_clientsession(self.hass)
         # Parallel fetch: live CSVs + one summary CSV per source sensor
@@ -99,13 +109,14 @@ class WaterlevelCoordinator(DataUpdateCoordinator):
         summary_coros = [self._fetch_summary(session, src) for src in summary_sources]
 
         all_results = await asyncio.gather(
-            *live_coros, *summary_coros,
+            *live_coros,
+            *summary_coros,
             return_exceptions=True,
         )
 
         # Unpack live results
         # _fetch_sensor now returns (value, last_reported, week_min, week_max)
-        for key, result in zip(live_keys, all_results[: len(live_keys)]):
+        for key, result in zip(live_keys, all_results[: len(live_keys)], strict=True):
             if isinstance(result, Exception):
                 _LOGGER.warning("Failed to fetch %s for station %s: %s", key, self.station, result)
                 data[key] = None
@@ -124,9 +135,11 @@ class WaterlevelCoordinator(DataUpdateCoordinator):
 
         # Unpack summary results (one dict per source sensor)
         summary_by_source: dict[str, dict] = {}
-        for src, result in zip(summary_sources, all_results[len(live_keys):]):
+        for src, result in zip(summary_sources, all_results[len(live_keys) :], strict=True):
             if isinstance(result, Exception):
-                _LOGGER.warning("Failed to fetch summary for station %s / %s: %s", self.station, src, result)
+                _LOGGER.warning(
+                    "Failed to fetch summary for station %s / %s: %s", self.station, src, result
+                )
                 summary_by_source[src] = {}
             else:
                 summary_by_source[src] = result or {}
@@ -230,7 +243,9 @@ class WaterlevelCoordinator(DataUpdateCoordinator):
                             if period == "week":
                                 _LOGGER.debug(
                                     "Station %s sensor %s: no data today, last known from week: %s",
-                                    self.station, sensor_key, last_reported,
+                                    self.station,
+                                    sensor_key,
+                                    last_reported,
                                 )
                         break
                     except ValueError:
@@ -240,7 +255,9 @@ class WaterlevelCoordinator(DataUpdateCoordinator):
             if value is not None and period == "day" and sensor_key == "0001":
                 week_url = BASE_URL.format(period="week", station=self.station, sensor=sensor_key)
                 try:
-                    async with session.get(week_url, timeout=aiohttp.ClientTimeout(total=30)) as resp:
+                    async with session.get(
+                        week_url, timeout=aiohttp.ClientTimeout(total=30)
+                    ) as resp:
                         if resp.status == 200:
                             wtext = await resp.text()
                             week_vals = []
