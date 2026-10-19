@@ -18,11 +18,13 @@ doesn't meet.
 
 | Path | Role |
 | --- | --- |
-| `coordinator.py` | Downloads and parses the CSVs every 15 minutes; `flood_stage()` works out the stage from the held reading |
+| `api.py` | `WaterlevelApi` and pure `parse_*` functions: every request to waterlevel.ie and all parsing |
+| `coordinator.py` | Reads the shared latest-readings feed (`LatestReadings`) and each station's CSVs every 15 minutes; `flood_stage()` works out the stage from the held reading |
 | `config_flow.py` | Menu, browse by river, or enter a station number |
 | `entity.py` | `WaterlevelEntity`: unique id, device info, map coordinates |
 | `sensor.py` | `SENSOR_DESCRIPTIONS`, keyed by OPW sensor code or summary key |
 | `binary_sensor.py`, `number.py` | Flood Alert and the three threshold numbers |
+| `thresholds.py` | Threshold suggestions from a station's Hydro-Data history (pure functions) |
 | `diagnostics.py` | Download diagnostics |
 | `strings.json`, `icons.json` | Every entity's name and icon, by translation key |
 | `brand/` | Icon and logos; sources in `docs/brand/` |
@@ -36,15 +38,24 @@ doesn't meet.
   checks both.
 - Every platform sets `PARALLEL_UPDATES`.
 - Use `entry.runtime_data`, never `hass.data[DOMAIN]`.
-- Use `async_get_clientsession(hass)`; never open an `aiohttp.ClientSession`.
+- Use `async_get_clientsession(hass)`; never open an `aiohttp.ClientSession`. Requests go through `WaterlevelApi`, which raises `WaterlevelError` (or `StationNotFound` for a 404).
 - Don't poll waterlevel.ie more often than every 15 minutes (their API terms).
-- When every live fetch fails, the coordinator raises `UpdateFailed` so entities go
-  unavailable. Per-sensor failures log at debug, so an outage logs once.
+- The coordinator keeps each sensor's last good reading through an outage and raises
+  `UpdateFailed` (entities unavailable) only once the newest reading is older than
+  `stale_after`. The freshness entities (Last Reading, Data Age, Data Stale) stay
+  available. Per-sensor failures log at debug, so an outage logs once.
 - The minimum Home Assistant version is in `hacs.json`, and `.github/workflows/tests.yml`
   tests it. Change both together (a test checks they match).
 - Keep the version in `manifest.json` and `pyproject.toml` the same (a test checks).
 - Every behaviour change comes with a test. CI fails below 95% coverage, branches included
   (`fail_under` in `pyproject.toml`); don't lower it to get a PR green.
+- Add user-visible changes to `CHANGELOG.md` under `## Unreleased`, grouped as **Added**,
+  **Changed**, **Fixes** and **Upgrading**.
+- Releasing: rename `## Unreleased` to `## vX.Y.Z` with a sentence or two on what the release
+  does, run `python scripts/set_version.py X.Y.Z`, then `--check vX.Y.Z`, in a release PR.
+  After it merges, the maintainer pushes the tag `vX.Y.Z` on main and
+  `.github/workflows/release.yml` publishes the GitHub release from the changelog section
+  (a `b` or `rc` tag publishes a pre-release). Never push a tag or create a release yourself.
 
 ## Commands
 

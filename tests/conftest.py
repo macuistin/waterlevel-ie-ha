@@ -12,6 +12,17 @@ def auto_enable_custom_integrations(enable_custom_integrations):
     yield
 
 
+@pytest.fixture(autouse=True)
+def frozen_now(freezer):
+    """Run every test at a fixed time just after the readings in the test data.
+
+    Readings older than the stale limit make a station unavailable, so tests must
+    not depend on the real clock.
+    """
+    freezer.move_to("2026-10-19T18:30:00Z")
+    return freezer
+
+
 @pytest.fixture
 def mock_setup_entry() -> Generator[AsyncMock]:
     """Stop a finished config flow from setting the entry up for real."""

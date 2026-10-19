@@ -18,6 +18,9 @@ A custom Home Assistant integration that pulls real-time river gauge data from [
 
 Each gauge station becomes a **device** in Home Assistant with all its sensors, flood alerts, and threshold controls grouped underneath.
 
+> [!WARNING]
+> **This is not a flood warning service.** Readings can be late, missing or wrong, and the flood stages here come from thresholds you set (or ones suggested from past data), not from any official assessment. For flood warnings, check [floodinfo.ie](https://www.floodinfo.ie/) and [Met Éireann warnings](https://www.met.ie/warnings), and follow advice from your local authority.
+
 ## Use cases
 
 - Get a phone notification when the river near your home, farm or business passes a level you choose.
@@ -30,9 +33,9 @@ Each gauge station becomes a **device** in Home Assistant with all its sensors, 
 ## Features
 
 - Browse and add any of the ~500+ Irish river gauge stations
-- Search by river (Barrow, Shannon, Boyne, etc.) then pick a station, or enter a station number directly
+- Find stations near your home (or any location), search by river (Barrow, Shannon, Boyne, etc.) then pick a station, or enter a station number directly
 - Auto-detects which sensors are available for each station
-- Sensors poll every 15 minutes (matching the gauge update frequency)
+- Sensors poll every 15 minutes (matching the gauge update frequency), reading one shared OPW latest-readings file for all your stations to keep requests to waterlevel.ie low
 - Add as many stations as you like — each becomes its own device
 - No YAML configuration required
 
@@ -54,6 +57,10 @@ Each gauge station becomes a **device** in Home Assistant with all its sensors, 
 | Daily Min Water Level | m | Rolling daily minimum |
 | Daily Max Water Level | m | Rolling daily maximum |
 | Flood Stage | — | Current flood stage: `normal`, `watch`, `alert`, or `serious` |
+| Water Level Trend | m/h | How fast the level is rising (positive) or falling (negative), fitted over the last 3 hours of readings |
+| Discharge | m³/s | River flow, from [OPW Hydro-Data](https://waterlevel.ie/hydro-data/). Only at stations where the OPW still reports flow |
+| Last Reading | — | Time of the station's newest reading from any sensor |
+| Data Age | min | Minutes since that reading. Diagnostic |
 
 Not all sensors are present at every station. The integration probes the API on setup and only creates entities for sensors that actually return data. To turn on a disabled sensor, open it from the device page and enable it in its settings.
 
@@ -63,19 +70,24 @@ Live sensors carry these attributes: `last_reported` (the time of the reading), 
 
 | Entity | Description |
 |---|---|
-| Flood Alert | `On` when flood stage is watch, alert, or serious. Use this to trigger automations or notifications |
+| Flood Alert | `On` when the flood stage reaches watch or above (you can choose the stage in the station's options). Use this to trigger automations or notifications |
+| Data Stale | `On` when the station has sent nothing for 3 hours. Diagnostic; stays available during an outage so you can alert on it |
 
 ### Number Entities (Flood Thresholds)
 
 Each station has three adjustable threshold entities that control when the flood stage changes:
 
-| Entity | Default | Description |
-|---|---|---|
-| Watch Level | 1.50 m | River rising — worth monitoring |
-| Alert Level | 2.50 m | Significant rise — prepare |
-| Serious Level | 3.50 m | Major flooding in progress |
+| Entity | Suggested from the station's history | Fallback default | Description |
+|---|---|---|---|
+| Watch Level | Daily mean exceeded on 5% of days | 1.50 m | River rising — worth monitoring |
+| Alert Level | Exceeded on 1% of days | 2.50 m | Significant rise — prepare |
+| Serious Level | Exceeded on 0.1% of days | 3.50 m | Major flooding in progress |
 
-These are set per-station and persist across restarts. Adjust them directly from the device page in **Settings → Devices & Services**, or use them in dashboards as interactive controls. Default values are based on OPW flood relief scheme engineering data for the River Barrow — tune them to match your specific gauge and local conditions.
+Every gauge measures from its own datum, so one set of defaults can't fit every station. When you add a station, the integration reads its full daily record from [OPW Hydro-Data](https://waterlevel.ie/hydro-data/) once, lines it up with the live readings, and suggests thresholds in the same units as Water Level. Each threshold entity shows its `suggested_value` attribute, and Flood Stage shows the station's `typical_level_m` (median daily mean) and `record_daily_mean_m`. Stations with less than a year of Hydro-Data history, or whose history can't be lined up with the live readings, keep the fallback defaults, which come from OPW flood relief scheme data for the River Barrow.
+
+Why 5%, 1% and 0.1%: on a typical record that means Watch is reached on about 18 days a year, which is often enough to notice a wet spell without crying wolf; Alert on about 4 days a year, the river's highest flows of most years; and Serious roughly once every three years, which most records show only in genuine floods. These are statistics, not OPW flood warnings, and they come from daily means, so short peaks run higher than the record suggests. Check them against what you know of the river.
+
+Thresholds you've set yourself are never changed by a suggestion. They persist across restarts, and you can adjust them from the device page in **Settings → Devices & Services** or use them in dashboards as interactive controls.
 
 ### Map Support
 
@@ -114,6 +126,7 @@ After installation and restart:
 1. Go to **Settings → Devices & Services → Add Integration**
 2. Search for **Water Level IE**
 3. Choose how to find the station:
+   - **Find stations near a location**: starts at your home location; drag the pin or change the radius, then pick from the stations in that area, closest first
    - **Browse by river**: pick a river, then a station on it. Stations you've already added are left out of the list.
    - **Enter a station number**: type the number (e.g. `14029`) or paste the station's page address from waterlevel.ie (e.g. `https://waterlevel.ie/0000014029/`)
 4. The integration detects available sensors and creates a device
@@ -122,11 +135,21 @@ To add more stations, repeat from step 1 — each station is a separate integrat
 
 | Setup field | What to enter |
 |---|---|
+| Location | The area to search. Starts at your home location with a 15 km radius |
 | River | The river or catchment the gauge is on, as waterlevel.ie lists it |
 | Station | A gauge on that river. Stations you've already added are left out |
 | Station number or address | The number from the station's waterlevel.ie page (`14029`, or `0000014029`), or the page's address |
 
-There are no other options; the flood thresholds are set on the device page after setup.
+The flood thresholds are set on the device page after setup. Each station also has options, under **Settings → Devices & Services → Water Level IE → Configure**:
+
+| Option | Default | What it does |
+|---|---|---|
+| Update interval | 15 min | How often the station reads new data. 15 minutes is the shortest allowed, as the OPW asks |
+| Mark data as stale after | 3 h | How long without a reading before Data Stale turns on and the other entities become unavailable |
+| Turn Flood Alert on from | Watch | The lowest flood stage that turns Flood Alert on: Watch, Alert or Serious |
+| Check the station for new sensors | off | Looks up the station's sensors again and adds any new ones, for example after the OPW adds a temperature probe |
+
+Saving the options reloads the station.
 
 Find station numbers and rivers at [waterlevel.ie/group/list](https://waterlevel.ie/group/list/).
 
@@ -134,11 +157,60 @@ Find station numbers and rivers at [waterlevel.ie/group/list](https://waterlevel
 
 ## How the data is updated
 
-Every 15 minutes, the integration downloads each live sensor's readings for today from waterlevel.ie and uses the latest one. If today has no readings yet it falls back to the last 7 days, and for Water Level it also reads the week to work out `week_min`, `week_max`. The daily mean, min and max come from the station's summary file, which waterlevel.ie updates once a day, so they describe yesterday. Coordinates come from the waterlevel.ie station map when the station is added.
+Every 15 minutes, the integration reads OPW's latest-readings file, which holds the newest reading of every sensor on every station. It is downloaded at most once every 15 minutes and shared by all your stations, so adding more stations doesn't add more of these downloads. For Water Level, each station also reads its last 7 days to work out `week_min` and `week_max`, and uses whichever reading is newer. A sensor missing from the shared file falls back to that station's readings for today, then for the last 7 days. The daily mean, min and max come from the station's summary file, which waterlevel.ie updates once a day, so they describe yesterday; it is re-read at most once an hour. Discharge is read from the station's OPW Hydro-Data week of flow readings at each update. Coordinates come from the waterlevel.ie station map when the station is added. The station's Hydro-Data history, used to suggest thresholds, is read once when the station is added; if that fails it is tried again next time Home Assistant starts.
 
 The flood stage and Flood Alert are worked out in Home Assistant from the latest Water Level and your thresholds; changing a threshold updates them straight away without a download.
 
-If no sensor on a station can be read, its entities become **unavailable** until the next successful update, and the integration logs the failure once and logs again when it recovers. If only the water level is missing, Flood Stage and Flood Alert show unknown rather than "normal".
+If waterlevel.ie can't be reached or a gauge stops reporting, the sensors keep their last reading (its `last_reported` attribute and Data Age show how old it is). Once the station has sent nothing for 3 hours (an option, see Configuration), Data Stale turns on and the other entities become **unavailable** until a new reading arrives; Last Reading, Data Age and Data Stale stay available. The integration logs the outage once and logs again when it recovers. If only the water level is missing, Flood Stage and Flood Alert show unknown rather than "normal".
+
+---
+
+## Dashboard example
+
+A history graph of the water level with its three thresholds shows at a glance how close the river is to each stage. Replace `graiguenamanagh` with your station's entity names:
+
+```yaml
+type: vertical-stack
+cards:
+  - type: history-graph
+    title: Graiguenamanagh
+    hours_to_show: 72
+    entities:
+      - entity: sensor.graiguenamanagh_water_level
+        name: Level
+      - entity: number.graiguenamanagh_watch_level
+        name: Watch
+      - entity: number.graiguenamanagh_alert_level
+        name: Alert
+      - entity: number.graiguenamanagh_serious_level
+        name: Serious
+  - type: glance
+    entities:
+      - entity: sensor.graiguenamanagh_flood_stage
+        name: Stage
+      - entity: sensor.graiguenamanagh_water_level_trend
+        name: Trend
+      - entity: sensor.graiguenamanagh_last_reading
+        name: Updated
+        format: relative
+```
+
+---
+
+## Flood warning automation
+
+The included blueprint runs your actions, such as a phone notification, when a station's flood stage rises to the level you choose. It can also run them when the river is rising faster than a rate you set.
+
+[![Open your Home Assistant instance and show the blueprint import dialog with this blueprint pre-filled.](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fmacuistin%2Fwaterlevel-ie-ha%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Fwaterlevel_ie%2Friver_rising.yaml)
+
+Or import it manually from `https://github.com/macuistin/waterlevel-ie-ha/blob/main/blueprints/automation/waterlevel_ie/river_rising.yaml` under **Settings → Automations & Scenes → Blueprints → Import Blueprint**. In your actions you can use `{{ station }}`, `{{ stage }}` and `{{ reason }}`, for example:
+
+```yaml
+action: notify.mobile_app_your_phone
+data:
+  title: "{{ station }}"
+  message: "River warning: {{ reason }}"
+```
 
 ---
 
@@ -190,13 +262,12 @@ automation:
   - alias: Gauge offline
     triggers:
       - trigger: state
-        entity_id: sensor.graiguenamanagh_water_level
-        to: unavailable
-        for: "01:00:00"
+        entity_id: binary_sensor.graiguenamanagh_data_stale
+        to: "on"
     actions:
       - action: notify.notify
         data:
-          message: The Graiguenamanagh gauge has not reported for an hour.
+          message: The Graiguenamanagh gauge has not reported for 3 hours.
 ```
 
 ---
@@ -204,23 +275,23 @@ automation:
 ## Known limitations
 
 - Levels are relative to each station's own datum, so 2 m at one station says nothing about 2 m at another. Use Water Level OD to compare stations.
-- The default thresholds (1.5, 2.5, 3.5 m) come from one River Barrow station and will be wrong elsewhere. Set them from the station's own history before relying on Flood Alert.
+- Suggested thresholds come from daily means and the station's own record, and stations with less than a year of history fall back to defaults from one River Barrow station. Check them before relying on Flood Alert.
 - Temperature is the gauge housing's temperature, not the water's.
 - Gauges report every 15 minutes, and readings can arrive late or be revised by the OPW, so the latest value can be up to about half an hour old.
 - The river and station lists during setup are read from waterlevel.ie's web pages. If the site's layout changes, browsing by river can fail; adding by station number still works.
-- Each station is polled separately. Adding dozens of stations means dozens of downloads every 15 minutes.
+- Each station with a Water Level still downloads its own week of readings every 15 minutes (plus its summary hourly). The latest readings themselves are shared across all stations.
 
 ---
 
 ## Troubleshooting
 
-**Entities are unavailable.** waterlevel.ie could not be reached, or the station returned no data. Check [the station's page](https://waterlevel.ie/hydro-data/) in a browser. The entities come back on their own at the next successful update.
+**Entities are unavailable.** The station has sent no reading for 3 hours, or waterlevel.ie can't be reached. Data Stale and Data Age show how long it has been. Check [the station's page](https://waterlevel.ie/hydro-data/) in a browser. The entities come back on their own at the next successful update.
 
 **"Could not load the river list".** waterlevel.ie's river pages didn't load. Try again later, or choose **Enter a station number** instead.
 
 **"No sensor data found for that station".** The number doesn't match a station that publishes data. Copy the address from the station's page on waterlevel.ie and paste it in.
 
-**Flood Stage is wrong for my river.** The thresholds are set per station on the device page; the defaults aren't tuned to your gauge.
+**Flood Stage is wrong for my river.** The thresholds are set per station on the device page. Compare them with the `suggested_value` attribute, and set what matches your stretch of river.
 
 **Battery Voltage or Signal Strength is missing.** They're disabled by default. Enable them from the device page.
 
@@ -245,6 +316,12 @@ Licensed under [Creative Commons Attribution 4.0 (CC BY 4.0)](https://creativeco
 Suggested attribution: *Contains Irish Public Sector Information licensed under a Creative Commons Attribution 4.0 International (CC BY 4.0) licence (source http://waterlevel.ie — provided by the Office of Public Works.)*
 
 Please do not poll more frequently than every 15 minutes. See [waterlevel.ie/page/api](https://waterlevel.ie/page/api/) for full API terms.
+
+---
+
+## Changes
+
+What each release changed is in [CHANGELOG.md](CHANGELOG.md).
 
 ---
 

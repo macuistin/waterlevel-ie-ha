@@ -5,8 +5,29 @@
         "title": "Add a gauge station",
         "description": "How would you like to find the station?",
         "menu_options": {
+          "nearby": "Find stations near a location",
           "river": "Browse by river",
           "station_number": "Enter a station number"
+        }
+      },
+      "nearby": {
+        "title": "Find stations nearby",
+        "description": "Choose a location and search radius. It starts at your home location.",
+        "data": {
+          "location": "Location"
+        },
+        "data_description": {
+          "location": "Drag the pin or change the circle to search a different area."
+        }
+      },
+      "nearby_station": {
+        "title": "Choose a station",
+        "description": "Gauge stations in that area, closest first. Stations you have already added are not listed.",
+        "data": {
+          "station": "Station"
+        },
+        "data_description": {
+          "station": "The gauge station to add. Each station becomes its own device."
         }
       },
       "river": {
@@ -45,11 +66,36 @@
       "invalid_station": "That doesn't look like a station number. Enter digits only, or paste the station's page address.",
       "station_not_found": "No sensor data found for that station. Check it exists on waterlevel.ie.",
       "no_stations": "No stations that you haven't already added were found on this river.",
+      "no_nearby_stations": "No stations that you haven't already added were found in that area. Try a larger radius.",
       "unknown": "Unexpected error. Check the Home Assistant logs."
     },
     "abort": {
       "already_configured": "This station is already configured.",
       "cannot_load_rivers": "Could not load the river list from waterlevel.ie. Try again later, or add the station by its number instead."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Station options",
+        "description": "waterlevel.ie updates each gauge about every 15 minutes, and the OPW asks that it isn't polled more often than that.",
+        "data": {
+          "scan_interval": "Update interval",
+          "stale_hours": "Mark data as stale after",
+          "alert_stage": "Turn Flood Alert on from",
+          "redetect_sensors": "Check the station for new sensors"
+        },
+        "data_description": {
+          "scan_interval": "How often to read new data from waterlevel.ie. 15 minutes is the shortest allowed.",
+          "stale_hours": "When the station hasn't sent a reading for this long, Data Stale turns on and the other entities become unavailable.",
+          "alert_stage": "The lowest flood stage that turns the Flood Alert binary sensor on.",
+          "redetect_sensors": "Looks up which sensors the station has now and adds any new ones."
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Could not reach waterlevel.ie. Check your internet connection and try again.",
+      "station_not_found": "waterlevel.ie no longer lists any sensor data for this station."
     }
   },
   "entity": {
@@ -81,6 +127,12 @@
       "daily_max_water_level": {
         "name": "Daily Max Water Level"
       },
+      "water_level_trend": {
+        "name": "Water Level Trend"
+      },
+      "discharge": {
+        "name": "Discharge"
+      },
       "flood_stage": {
         "name": "Flood Stage",
         "state": {
@@ -98,30 +150,74 @@
           },
           "serious_level_m": {
             "name": "Serious level"
+          },
+          "typical_level_m": {
+            "name": "Typical level"
+          },
+          "record_daily_mean_m": {
+            "name": "Record daily mean"
           }
         }
+      },
+      "last_reading": {
+        "name": "Last Reading"
+      },
+      "data_age": {
+        "name": "Data Age"
       }
     },
     "binary_sensor": {
       "flood_alert": {
         "name": "Flood Alert"
+      },
+      "data_stale": {
+        "name": "Data Stale",
+        "state_attributes": {
+          "last_reading": {
+            "name": "Last reading"
+          }
+        }
       }
     },
     "number": {
       "watch_level": {
-        "name": "Watch Level"
+        "name": "Watch Level",
+        "state_attributes": {
+          "suggested_value": {
+            "name": "Suggested value"
+          }
+        }
       },
       "alert_level": {
-        "name": "Alert Level"
+        "name": "Alert Level",
+        "state_attributes": {
+          "suggested_value": {
+            "name": "Suggested value"
+          }
+        }
       },
       "serious_level": {
-        "name": "Serious Level"
+        "name": "Serious Level",
+        "state_attributes": {
+          "suggested_value": {
+            "name": "Suggested value"
+          }
+        }
+      }
+    }
+  },
+  "selector": {
+    "alert_stage": {
+      "options": {
+        "watch": "Watch",
+        "alert": "Alert",
+        "serious": "Serious"
       }
     }
   },
   "exceptions": {
     "update_failed": {
-      "message": "Could not read any data for station {station} from waterlevel.ie: {error}"
+      "message": "Could not read any recent data for station {station} from waterlevel.ie: {error}"
     }
   }
 }

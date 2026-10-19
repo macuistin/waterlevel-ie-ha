@@ -1,0 +1,95 @@
+blueprint:
+  name: River flood warning (Water Level IE)
+  description: >-
+    Runs your actions when a Water Level IE station's flood stage rises to a level
+    you choose, or when the river is rising faster than a rate you set.
+    Not an official flood warning: always check floodinfo.ie and Met Éireann.
+  domain: automation
+  homeassistant:
+    min_version: 2025.2.0
+  source_url: https://github.com/macuistin/waterlevel-ie-ha/blob/main/blueprints/automation/waterlevel_ie/river_rising.yaml
+  input:
+    flood_stage:
+      name: Flood Stage sensor
+      description: The station's Flood Stage sensor.
+      selector:
+        entity:
+          filter:
+            - integration: waterlevel_ie
+              domain: sensor
+    minimum_stage:
+      name: Minimum stage
+      description: Run the actions when the stage rises to this or higher.
+      default: watch
+      selector:
+        select:
+          options:
+            - label: Watch
+              value: watch
+            - label: Alert
+              value: alert
+            - label: Serious
+              value: serious
+    trend:
+      name: Water Level Trend sensor (optional)
+      description: The station's Water Level Trend sensor, to also warn when the river rises fast.
+      default: []
+      selector:
+        entity:
+          filter:
+            - integration: waterlevel_ie
+              domain: sensor
+    rate:
+      name: Rising faster than
+      description: Only used with a Water Level Trend sensor.
+      default: 0.05
+      selector:
+        number:
+          min: 0.01
+          max: 1
+          step: 0.01
+          unit_of_measurement: m/h
+          mode: box
+    actions:
+      name: Actions
+      description: What to do, for example send a notification. The variables `station`, `stage` and `reason` are available.
+      selector:
+        action: {}
+
+mode: single
+max_exceeded: silent
+
+variables:
+  stages: [normal, watch, alert, serious]
+  minimum_stage: !input minimum_stage
+  flood_stage_entity: !input flood_stage
+  station: >-
+    {% set device = device_id(flood_stage_entity) %}
+    {{ device_attr(device, 'name') if device else state_attr(flood_stage_entity, 'friendly_name') }}
+  stage: "{{ states(flood_stage_entity) }}"
+
+triggers:
+  - trigger: state
+    entity_id: !input flood_stage
+    id: stage
+  - trigger: numeric_state
+    entity_id: !input trend
+    above: !input rate
+    id: rate
+
+conditions:
+  - condition: template
+    value_template: >-
+      {% if trigger.id == 'stage' %}
+        {{ trigger.to_state.state in stages and trigger.from_state.state in stages
+           and stages.index(trigger.to_state.state) > stages.index(trigger.from_state.state)
+           and stages.index(trigger.to_state.state) >= stages.index(minimum_stage) }}
+      {% else %}
+        true
+      {% endif %}
+
+actions:
+  - variables:
+      reason: >-
+        {% if trigger.id == 'stage' %}flood stage is now {{ stage }}{% else %}river rising at {{ trigger.to_state.state }} m/h{% endif %}
+  - sequence: !input actions

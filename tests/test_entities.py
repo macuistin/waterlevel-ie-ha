@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import timedelta
+
 import aiohttp
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import STATE_UNAVAILABLE, STATE_UNKNOWN, EntityCategory
@@ -13,7 +15,7 @@ from pytest_homeassistant_custom_component.common import (
 )
 from pytest_homeassistant_custom_component.test_util.aiohttp import AiohttpClientMocker
 
-from custom_components.waterlevel_ie.const import DOMAIN, GEOJSON_URL
+from custom_components.waterlevel_ie.const import DOMAIN, GEOJSON_URL, LATEST_GEOJSON_URL
 from custom_components.waterlevel_ie.diagnostics import async_get_config_entry_diagnostics
 
 STATION = "14029"
@@ -24,16 +26,28 @@ GEOJSON = {
     "features": [{"properties": {"ref": "14029"}, "geometry": {"coordinates": [-6.95, 52.54]}}]
 }
 SENSORS = ["0001", "0002", "0003", "0014", "0001_daily_mean"]
+HYDRO_URL = "https://waterlevel.ie/hydro-data/data/internet/stations/0/14029/{param}/{period}.json"
 
 
-def _csv(value: str) -> str:
-    return f"datetime,value\n2026-10-19T18:00:00Z,{value}\n"
+def _mock_no_history(aioclient_mock: AiohttpClientMocker) -> None:
+    for param in ("S", "Q"):
+        for period in ("week", "year"):
+            aioclient_mock.get(HYDRO_URL.format(param=param, period=period), status=404)
+
+
+def _csv(value: str, time: str = "2026-10-19T18:00:00Z") -> str:
+    return f"datetime,value\n{time},{value}\n"
 
 
 def _mock_readings(
-    aioclient_mock: AiohttpClientMocker, level: str = "1.42", *, level_fails: bool = False
+    aioclient_mock: AiohttpClientMocker,
+    level: str = "1.42",
+    *,
+    level_fails: bool = False,
+    time: str = "2026-10-19T18:00:00Z",
 ) -> None:
     aioclient_mock.clear_requests()
+    _mock_no_history(aioclient_mock)
     readings = {"0001": level, "0002": "11.5", "0003": "12.9", "0014": "-71"}
     for sensor, value in readings.items():
         for period in ("day", "week"):
@@ -41,13 +55,16 @@ def _mock_readings(
             if sensor == "0001" and level_fails:
                 aioclient_mock.get(url, exc=aiohttp.ClientError("boom"))
             else:
-                aioclient_mock.get(url, text=_csv(value))
+                aioclient_mock.get(url, text=_csv(value, time))
     aioclient_mock.get(SUMMARY_URL, text=SUMMARY_CSV)
     aioclient_mock.get(GEOJSON_URL, json=GEOJSON)
+    # Nothing in the shared feed, so every reading comes from the CSVs
+    aioclient_mock.get(LATEST_GEOJSON_URL, json={"features": []})
 
 
 def _mock_outage(aioclient_mock: AiohttpClientMocker) -> None:
     aioclient_mock.clear_requests()
+    _mock_no_history(aioclient_mock)
     for sensor in ("0001", "0002", "0003", "0014"):
         for period in ("day", "week"):
             aioclient_mock.get(
@@ -55,6 +72,7 @@ def _mock_outage(aioclient_mock: AiohttpClientMocker) -> None:
             )
     aioclient_mock.get(SUMMARY_URL, exc=aiohttp.ClientError("down"))
     aioclient_mock.get(GEOJSON_URL, exc=aiohttp.ClientError("down"))
+    aioclient_mock.get(LATEST_GEOJSON_URL, exc=aiohttp.ClientError("down"))
 
 
 async def _setup(hass: HomeAssistant) -> MockConfigEntry:
@@ -142,13 +160,32 @@ async def test_threshold_change_needs_no_request(
     assert aioclient_mock.call_count == calls
 
 
-async def test_outage_makes_entities_unavailable(
+async def test_short_outage_keeps_last_readings(
     hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
 ) -> None:
     _mock_readings(aioclient_mock)
     entry = await _setup(hass)
 
     _mock_outage(aioclient_mock)
+    await entry.runtime_data.async_refresh()
+    await hass.async_block_till_done()
+
+    # Within the stale limit the last good readings stay, with their own timestamps
+    level = hass.states.get("sensor.graiguenamanagh_water_level")
+    assert level.state == "1.42"
+    assert level.attributes["last_reported"] == "2026-10-19T18:00:00+00:00"
+    assert hass.states.get("sensor.graiguenamanagh_flood_stage").state == "normal"
+    assert hass.states.get("binary_sensor.graiguenamanagh_data_stale").state == "off"
+
+
+async def test_long_outage_makes_entities_unavailable(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker, frozen_now
+) -> None:
+    _mock_readings(aioclient_mock)
+    entry = await _setup(hass)
+
+    _mock_outage(aioclient_mock)
+    frozen_now.tick(timedelta(hours=4))
     await entry.runtime_data.async_refresh()
     await hass.async_block_till_done()
 
@@ -161,12 +198,18 @@ async def test_outage_makes_entities_unavailable(
         assert hass.states.get(entity_id).state == STATE_UNAVAILABLE, entity_id
     # Thresholds are local settings and stay editable
     assert hass.states.get("number.graiguenamanagh_watch_level").state == "1.5"
-    assert "Could not read any data for station 14029" in str(entry.runtime_data.last_exception)
+    # The freshness entities say what's wrong
+    assert hass.states.get("binary_sensor.graiguenamanagh_data_stale").state == "on"
+    assert hass.states.get("sensor.graiguenamanagh_data_age").state == "270"
+    message = str(entry.runtime_data.last_exception)
+    assert "Could not read any recent data for station 14029" in message
+    assert "no reading newer than 3 hours" in message
 
-    _mock_readings(aioclient_mock)
+    _mock_readings(aioclient_mock, time="2026-10-19T22:15:00Z")
     await entry.runtime_data.async_refresh()
     await hass.async_block_till_done()
     assert hass.states.get("sensor.graiguenamanagh_water_level").state == "1.42"
+    assert hass.states.get("binary_sensor.graiguenamanagh_data_stale").state == "off"
 
 
 async def test_missing_level_makes_flood_stage_unknown(
@@ -239,6 +282,7 @@ async def test_station_without_water_level(
     """A temperature-only station gets no flood entities, and no coordinates when unknown."""
     aioclient_mock.get(DATA_URL.format(period="day", sensor="0002"), text=_csv("9.5"))
     aioclient_mock.get(GEOJSON_URL, json={"features": []})
+    aioclient_mock.get(LATEST_GEOJSON_URL, json={"features": []})
     entry = MockConfigEntry(
         domain=DOMAIN,
         unique_id=f"{DOMAIN}_{STATION}",
@@ -251,6 +295,9 @@ async def test_station_without_water_level(
     temperature = hass.states.get("sensor.graiguenamanagh_temperature")
     assert temperature.state == "9.5"
     assert "latitude" not in temperature.attributes
-    assert hass.states.async_entity_ids("binary_sensor") == []
+    # Data Stale applies to every station; Flood Alert needs a water level
+    assert hass.states.async_entity_ids("binary_sensor") == [
+        "binary_sensor.graiguenamanagh_data_stale"
+    ]
     assert hass.states.async_entity_ids("number") == []
     assert hass.states.get("sensor.graiguenamanagh_flood_stage") is None

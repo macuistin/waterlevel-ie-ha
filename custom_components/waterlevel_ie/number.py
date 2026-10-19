@@ -69,6 +69,13 @@ class WaterlevelThresholdNumber(WaterlevelEntity, RestoreNumber):
     def native_value(self) -> float | None:
         return self.coordinator.get_threshold(self._threshold_key)
 
+    @property
+    def extra_state_attributes(self) -> dict[str, float]:
+        """The level suggested from the station's history, if there is one."""
+        if (suggested := (self.coordinator.suggested or {}).get(self._threshold_key)) is None:
+            return {}
+        return {"suggested_value": suggested}
+
     async def async_set_native_value(self, value: float) -> None:
         """Update the threshold; the flood entities recalculate from the held reading."""
         self.coordinator.set_threshold(self._threshold_key, value)

@@ -6,10 +6,17 @@ import logging
 import re
 from typing import Any
 
-import aiohttp
 from homeassistant import config_entries
+from homeassistant.const import CONF_LOCATION, CONF_RADIUS
+from homeassistant.core import callback
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.selector import (
+    BooleanSelector,
+    LocationSelector,
+    LocationSelectorConfig,
+    NumberSelector,
+    NumberSelectorConfig,
+    NumberSelectorMode,
     SelectSelector,
     SelectSelectorConfig,
     SelectSelectorMode,
@@ -17,28 +24,32 @@ from homeassistant.helpers.selector import (
     TextSelectorConfig,
     TextSelectorType,
 )
+from homeassistant.util.location import distance
 import voluptuous as vol
 
+from .api import StationNotFound, WaterlevelApi, WaterlevelError
 from .const import (
-    BASE_URL,
+    CONF_ALERT_STAGE,
     CONF_AVAILABLE_SENSORS,
     CONF_LATITUDE,
     CONF_LONGITUDE,
+    CONF_REDETECT,
+    CONF_SCAN_INTERVAL,
+    CONF_STALE_HOURS,
     CONF_STATION,
     CONF_STATION_NAME,
+    DEFAULT_ALERT_STAGE,
+    DEFAULT_SCAN_INTERVAL,
+    DEFAULT_STALE_HOURS,
     DOMAIN,
-    SENSOR_TYPES,
-    STATION_PAGE_URL,
-    SUMMARY_SENSOR_TYPES,
-    SUMMARY_URL,
+    FLOOD_STAGES,
+    GROUP_LIST_URL,
+    MIN_SCAN_INTERVAL,
 )
-from .coordinator import fetch_station_coords
 
 _LOGGER = logging.getLogger(__name__)
-GROUP_LIST_URL = "https://waterlevel.ie/group/list/"
-GROUP_URL = "https://waterlevel.ie/group/{group_id}/"
-TIMEOUT = aiohttp.ClientTimeout(total=15)
 CONF_GROUP = "group"
+DEFAULT_NEARBY_RADIUS = 15000  # metres
 
 
 def normalize_station(raw: str) -> str | None:
@@ -59,103 +70,19 @@ def normalize_station(raw: str) -> str | None:
     return str(int(digits)).zfill(5)
 
 
-async def _fetch_groups(session: aiohttp.ClientSession) -> dict[str, str]:
-    async with session.get(GROUP_LIST_URL, timeout=TIMEOUT) as resp:
-        resp.raise_for_status()
-        html = await resp.text()
-    groups: dict[str, str] = {}
-    for m in re.finditer(r'href="/group/(\d+)/">([^<]+)</a>', html):
-        gid, name = m.group(1), m.group(2).strip()
-        display = re.sub(r"\s*[-\u2013]\s*water level.*$", "", name, flags=re.I).strip()
-        groups[gid] = display or name
-    return dict(sorted(groups.items(), key=lambda kv: kv[1]))
-
-
-async def _fetch_stations(session: aiohttp.ClientSession, group_id: str) -> dict[str, str]:
-    url = GROUP_URL.format(group_id=group_id)
-    async with session.get(url, timeout=TIMEOUT) as resp:
-        resp.raise_for_status()
-        html = await resp.text()
-    stations: dict[str, str] = {}
-    for m in re.finditer(r'href="/(\d{10})/">([^<]+)</a>', html):
-        if num := normalize_station(m.group(1)):
-            stations[num] = m.group(2).strip()
-    return dict(sorted(stations.items(), key=lambda kv: kv[1]))
-
-
-async def _detect_station(
-    session: aiohttp.ClientSession, station: str, name_hint: str | None = None
-) -> dict:
-    """Probe a station for available sensors and metadata.
+async def _detect_station(api: WaterlevelApi, station: str, name_hint: str | None = None) -> dict:
+    """Probe a station and build its config entry data.
 
     name_hint: preferred display name (e.g. from the river group picker).
     Falls back to the station page title, then to 'Station {station}'.
     """
-    padded = station.zfill(10)
-    page_url = STATION_PAGE_URL.format(station_padded=padded)
-    station_name = name_hint or f"Station {station}"
-    available: list[str] = []
-    try:
-        async with session.get(page_url, timeout=TIMEOUT) as resp:
-            if resp.status == 200:
-                html = await resp.text()
-                # Extract station name from page if no group-picker hint
-                if not name_hint:
-                    m = re.search(r"Sensors on Station\s+\d+\s+([^<]+)", html)
-                    if m:
-                        station_name = m.group(1).strip()
-                # Detect all sensor types by parsing table links on the station page.
-                # Links look like /0000014029/0001/ or /0000026021/0014/
-                # This is far more efficient than probing each sensor CSV individually.
-                page_codes = set(re.findall(r"/\d{10}/([A-Za-z0-9]+)/(?:week|day|summary)/", html))
-                for sensor_key in SENSOR_TYPES:
-                    if sensor_key in page_codes:
-                        available.append(sensor_key)
-    except Exception as err:
-        _LOGGER.debug("Could not fetch station page: %s", err)
-    # Fall back to CSV probing if page parsing gave nothing (e.g. HTTP error above)
-    if not available:
-        for sensor_key in SENSOR_TYPES:
-            url = BASE_URL.format(period="day", station=station, sensor=sensor_key)
-            try:
-                async with session.get(url, timeout=aiohttp.ClientTimeout(total=10)) as resp:
-                    if resp.status == 200 and (await resp.text()).strip():
-                        available.append(sensor_key)
-            except Exception:
-                pass
-    # Probe summary (daily min/mean/max) for each sensor that supports it
-    already_probed: set[str] = set()
-    for cfg in SUMMARY_SENSOR_TYPES.values():
-        source = cfg["summary_source"]
-        if source not in available or source in already_probed:
-            continue
-        already_probed.add(source)
-        sum_url = SUMMARY_URL.format(station_padded=padded, sensor=source)
-        try:
-            async with session.get(sum_url, timeout=aiohttp.ClientTimeout(total=10)) as resp:
-                if resp.status == 200:
-                    text = await resp.text()
-                    # Check that there's at least one row with a Mean value
-                    has_mean = any(
-                        len(p := line.split(",")) >= 5 and p[3].strip()
-                        for line in text.splitlines()
-                        if line.strip() and not line.startswith("Datetime")
-                    )
-                    if has_mean:
-                        # Add all summary keys for this source sensor
-                        for sk, sc in SUMMARY_SENSOR_TYPES.items():
-                            if sc["summary_source"] == source:
-                                available.append(sk)
-        except Exception:
-            pass
-    if not available:
-        raise ValueError(f"No sensor data found for station {station}")
+    page_name, available = await api.detect_station(station)
     result = {
         CONF_STATION: station,
-        CONF_STATION_NAME: station_name,
+        CONF_STATION_NAME: name_hint or page_name or f"Station {station}",
         CONF_AVAILABLE_SENSORS: available,
     }
-    if coords := await fetch_station_coords(session, station):
+    if coords := await api.station_coords(station):
         result[CONF_LATITUDE], result[CONF_LONGITUDE] = coords
     return result
 
@@ -165,24 +92,108 @@ class WaterlevelConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     VERSION = 1
 
+    @staticmethod
+    @callback
+    def async_get_options_flow(
+        config_entry: config_entries.ConfigEntry,
+    ) -> WaterlevelOptionsFlow:
+        return WaterlevelOptionsFlow()
+
     def __init__(self) -> None:
         self._groups: dict[str, str] = {}
         self._selected_group: str | None = None
         self._stations: dict[str, str] = {}
+        self._distances: dict[str, float] = {}
 
     async def async_step_user(self, user_input: dict[str, Any] | None = None):
-        """Ask whether to browse by river or type a station number."""
-        return self.async_show_menu(step_id="user", menu_options=["river", "station_number"])
+        """Ask whether to find stations nearby, browse by river, or type a station number."""
+        return self.async_show_menu(
+            step_id="user", menu_options=["nearby", "river", "station_number"]
+        )
+
+    async def async_step_nearby(self, user_input: dict[str, Any] | None = None):
+        """Pick a location and radius (the home location by default)."""
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            location = user_input[CONF_LOCATION]
+            try:
+                stations = await WaterlevelApi(async_get_clientsession(self.hass)).stations()
+            except WaterlevelError as err:
+                _LOGGER.warning("Failed to fetch the station list: %s", err)
+                errors["base"] = "cannot_connect"
+            else:
+                configured = self._async_current_ids()
+                nearby = []
+                for sid, (name, lat, lon) in stations.items():
+                    if f"{DOMAIN}_{sid}" in configured:
+                        continue
+                    dist = distance(location[CONF_LATITUDE], location[CONF_LONGITUDE], lat, lon)
+                    if dist is not None and dist <= location[CONF_RADIUS]:
+                        nearby.append((dist, sid, name))
+                nearby.sort()
+                if nearby:
+                    self._stations = {sid: name for _, sid, name in nearby}
+                    self._distances = {sid: dist for dist, sid, _ in nearby}
+                    return await self.async_step_nearby_station()
+                errors["base"] = "no_nearby_stations"
+        default = (user_input or {}).get(CONF_LOCATION) or {
+            CONF_LATITUDE: self.hass.config.latitude,
+            CONF_LONGITUDE: self.hass.config.longitude,
+            CONF_RADIUS: DEFAULT_NEARBY_RADIUS,
+        }
+        return self.async_show_form(
+            step_id="nearby",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(CONF_LOCATION, default=default): LocationSelector(
+                        LocationSelectorConfig(radius=True)
+                    ),
+                }
+            ),
+            errors=errors,
+        )
+
+    async def async_step_nearby_station(self, user_input: dict[str, Any] | None = None):
+        """Pick one of the stations found nearby, closest first."""
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            station = user_input[CONF_STATION]
+            result = await self._async_add_station(
+                station, errors, name_hint=self._stations.get(station)
+            )
+            if result is not None:
+                return result
+        return self.async_show_form(
+            step_id="nearby_station",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(CONF_STATION): SelectSelector(
+                        SelectSelectorConfig(
+                            options=[
+                                {
+                                    "value": sid,
+                                    "label": f"{name} ({sid}), "
+                                    f"{self._distances[sid] / 1000:.1f} km",
+                                }
+                                for sid, name in self._stations.items()
+                            ],
+                            mode=SelectSelectorMode.DROPDOWN,
+                        )
+                    ),
+                }
+            ),
+            errors=errors,
+        )
 
     async def async_step_river(self, user_input: dict[str, Any] | None = None):
         """Pick a river, then load its stations."""
         errors: dict[str, str] = {}
-        session = async_get_clientsession(self.hass)
+        api = WaterlevelApi(async_get_clientsession(self.hass))
         if user_input is not None:
             group_id = user_input[CONF_GROUP]
             try:
-                stations = await _fetch_stations(session, group_id)
-            except (aiohttp.ClientError, TimeoutError) as err:
+                stations = await api.group_stations(group_id)
+            except WaterlevelError as err:
                 _LOGGER.warning("Failed to fetch stations for river %s: %s", group_id, err)
                 errors["base"] = "cannot_connect"
             else:
@@ -199,8 +210,8 @@ class WaterlevelConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 errors[CONF_GROUP] = "no_stations"
         if not self._groups:
             try:
-                self._groups = await _fetch_groups(session)
-            except (aiohttp.ClientError, TimeoutError) as err:
+                self._groups = await api.groups()
+            except WaterlevelError as err:
                 _LOGGER.warning("Failed to fetch river list: %s", err)
             if not self._groups:
                 # Nothing to pick from; the user can still type a station number.
@@ -290,11 +301,11 @@ class WaterlevelConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self._abort_if_unique_id_configured()
         try:
             info = await _detect_station(
-                async_get_clientsession(self.hass), station, name_hint=name_hint
+                WaterlevelApi(async_get_clientsession(self.hass)), station, name_hint=name_hint
             )
-        except ValueError:
+        except StationNotFound:
             errors[CONF_STATION] = "station_not_found"
-        except (aiohttp.ClientError, TimeoutError):
+        except WaterlevelError:
             errors["base"] = "cannot_connect"
         except Exception:
             _LOGGER.exception("Unexpected error adding station %s", station)
@@ -302,3 +313,78 @@ class WaterlevelConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         else:
             return self.async_create_entry(title=info[CONF_STATION_NAME], data=info)
         return None
+
+
+class WaterlevelOptionsFlow(config_entries.OptionsFlow):
+    """Change how often a station updates and when it counts as stale."""
+
+    async def async_step_init(self, user_input: dict[str, Any] | None = None):
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            options = {
+                CONF_SCAN_INTERVAL: int(user_input[CONF_SCAN_INTERVAL]),
+                CONF_STALE_HOURS: int(user_input[CONF_STALE_HOURS]),
+                CONF_ALERT_STAGE: user_input.get(CONF_ALERT_STAGE, DEFAULT_ALERT_STAGE),
+            }
+            if user_input.get(CONF_REDETECT):
+                api = WaterlevelApi(async_get_clientsession(self.hass))
+                try:
+                    _, available = await api.detect_station(self.config_entry.data[CONF_STATION])
+                except StationNotFound:
+                    errors["base"] = "station_not_found"
+                except WaterlevelError:
+                    errors["base"] = "cannot_connect"
+                else:
+                    # Sensors and options in one update, so the station reloads once
+                    self.hass.config_entries.async_update_entry(
+                        self.config_entry,
+                        data={**self.config_entry.data, CONF_AVAILABLE_SENSORS: available},
+                        options=options,
+                    )
+            if not errors:
+                # Saving reloads the station, which picks up the settings and any new sensors
+                return self.async_create_entry(data=options)
+        options = self.config_entry.options
+        return self.async_show_form(
+            step_id="init",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(
+                        CONF_SCAN_INTERVAL,
+                        default=options.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL),
+                    ): NumberSelector(
+                        NumberSelectorConfig(
+                            min=MIN_SCAN_INTERVAL,
+                            max=180,
+                            step=5,
+                            unit_of_measurement="min",
+                            mode=NumberSelectorMode.BOX,
+                        )
+                    ),
+                    vol.Required(
+                        CONF_STALE_HOURS,
+                        default=options.get(CONF_STALE_HOURS, DEFAULT_STALE_HOURS),
+                    ): NumberSelector(
+                        NumberSelectorConfig(
+                            min=1,
+                            max=72,
+                            step=1,
+                            unit_of_measurement="h",
+                            mode=NumberSelectorMode.BOX,
+                        )
+                    ),
+                    vol.Required(
+                        CONF_ALERT_STAGE,
+                        default=options.get(CONF_ALERT_STAGE, DEFAULT_ALERT_STAGE),
+                    ): SelectSelector(
+                        SelectSelectorConfig(
+                            options=[stage for stage in FLOOD_STAGES if stage != "normal"],
+                            translation_key=CONF_ALERT_STAGE,
+                            mode=SelectSelectorMode.LIST,
+                        )
+                    ),
+                    vol.Optional(CONF_REDETECT, default=False): BooleanSelector(),
+                }
+            ),
+            errors=errors,
+        )

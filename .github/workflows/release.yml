@@ -1,0 +1,48 @@
+name: Release
+
+# Pushing a version tag such as v1.2.0 publishes a GitHub release, which HACS offers as an
+# update. A tag with b or rc in it (v1.3.0b1) publishes a pre-release, which HACS offers
+# under "Show beta versions". The notes are the tag's section of CHANGELOG.md, and the job
+# fails unless manifest.json, pyproject.toml and the changelog all state the tag's version.
+# Restrict tag creation to the maintainer with a tag ruleset, because this runs for whoever
+# can push a matching tag.
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+*"
+
+permissions:
+  contents: read
+
+# A release is never cancelled part way, so a second tag waits for the first.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Publish release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+      - name: Tag matches the version in the files
+        run: python scripts/set_version.py --check "${GITHUB_REF_NAME}"
+      - name: Release notes from the changelog
+        run: python scripts/set_version.py --notes "${GITHUB_REF_NAME}" > "${RUNNER_TEMP}/notes.md"
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "${GITHUB_REF_NAME}" > /dev/null 2>&1; then
+            echo "A release for ${GITHUB_REF_NAME} already exists; leaving it as it is."
+            exit 0
+          fi
+          prerelease=""
+          if [[ "${GITHUB_REF_NAME}" =~ (b|rc)[0-9]+$ ]]; then prerelease="--prerelease"; fi
+          gh release create "${GITHUB_REF_NAME}" --verify-tag ${prerelease} \
+            --title "${GITHUB_REF_NAME}" --notes-file "${RUNNER_TEMP}/notes.md"
