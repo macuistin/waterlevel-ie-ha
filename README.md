@@ -82,9 +82,9 @@ After installation and restart:
 
 1. Go to **Settings → Devices & Services → Add Integration**
 2. Search for **Waterlevel.ie**
-3. Either:
-   - Pick a **river** from the dropdown → select a station on the next screen
-   - Or enter a **station number** directly (e.g. `14029`)
+3. Choose how to find the station:
+   - **Browse by river**: pick a river, then a station on it. Stations you've already added are left out of the list.
+   - **Enter a station number**: type the number (e.g. `14029`) or paste the station's page address from waterlevel.ie (e.g. `https://waterlevel.ie/0000014029/`)
 4. The integration detects available sensors and creates a device
 
 To add more stations, repeat from step 1 — each station is a separate integration entry and device.
@@ -108,3 +108,10 @@ Please do not poll more frequently than every 15 minutes. See [waterlevel.ie/pag
 ## Contributing
 
 Issues and PRs welcome. Open an issue at the [issue tracker](https://github.com/macuistin/waterlevel-ie-ha/issues).
+
+Run the tests with:
+
+```bash
+pip install -r requirements_test.txt
+pytest
+```

@@ -8,6 +8,7 @@ from datetime import timedelta
 import aiohttp
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .const import (
@@ -20,6 +21,26 @@ _LOGGER = logging.getLogger(__name__)
 UPDATE_INTERVAL = timedelta(seconds=900)
 # Trend threshold: ±this many metres vs yesterday mean = rising/falling
 TREND_THRESHOLD = 0.02
+
+
+async def fetch_station_coords(
+    session: aiohttp.ClientSession, station: str
+) -> tuple[float, float] | None:
+    """Return (latitude, longitude) for the station from the OPW GeoJSON, or None."""
+    try:
+        async with session.get(GEOJSON_URL, timeout=aiohttp.ClientTimeout(total=20)) as resp:
+            if resp.status != 200:
+                return None
+            geo = await resp.json(content_type=None)
+        for feature in geo.get("features", []):
+            # The ref may be zero-padded to 10 digits or not; compare numerically
+            ref = str(feature.get("properties", {}).get("ref", ""))
+            if ref.isdigit() and int(ref) == int(station):
+                lon, lat = feature["geometry"]["coordinates"]  # GeoJSON is [lon, lat]
+                return (float(lat), float(lon))
+    except Exception as err:
+        _LOGGER.debug("Could not fetch coordinates for station %s: %s", station, err)
+    return None
 
 
 class WaterlevelCoordinator(DataUpdateCoordinator):
@@ -72,15 +93,15 @@ class WaterlevelCoordinator(DataUpdateCoordinator):
             SUMMARY_SENSOR_TYPES[k]["summary_source"] for k in summary_keys
         ))
 
-        async with aiohttp.ClientSession() as session:
-            # Parallel fetch: live CSVs + one summary CSV per source sensor
-            live_coros = [self._fetch_sensor(session, k) for k in live_keys]
-            summary_coros = [self._fetch_summary(session, src) for src in summary_sources]
+        session = async_get_clientsession(self.hass)
+        # Parallel fetch: live CSVs + one summary CSV per source sensor
+        live_coros = [self._fetch_sensor(session, k) for k in live_keys]
+        summary_coros = [self._fetch_summary(session, src) for src in summary_sources]
 
-            all_results = await asyncio.gather(
-                *live_coros, *summary_coros,
-                return_exceptions=True,
-            )
+        all_results = await asyncio.gather(
+            *live_coros, *summary_coros,
+            return_exceptions=True,
+        )
 
         # Unpack live results
         # _fetch_sensor now returns (value, last_reported, week_min, week_max)
@@ -153,23 +174,9 @@ class WaterlevelCoordinator(DataUpdateCoordinator):
     async def _fetch_coords_if_missing(self) -> None:
         """Fetch GPS coordinates from the OPW GeoJSON if not stored at setup time."""
         self._coord_fetch_attempted = True
-        padded = self.station.zfill(10)
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(GEOJSON_URL, timeout=aiohttp.ClientTimeout(total=20)) as resp:
-                    if resp.status != 200:
-                        return
-                    geo = await resp.json(content_type=None)
-            for feature in geo.get("features", []):
-                ref = str(feature.get("properties", {}).get("ref", ""))
-                if ref == padded:
-                    lon, lat = feature["geometry"]["coordinates"]
-                    self.latitude = float(lat)
-                    self.longitude = float(lon)
-                    _LOGGER.debug("Fetched coordinates for station %s: %.5f, %.5f", self.station, lat, lon)
-                    break
-        except Exception as err:
-            _LOGGER.debug("Could not fetch coordinates for station %s: %s", self.station, err)
+        if coords := await fetch_station_coords(async_get_clientsession(self.hass), self.station):
+            self.latitude, self.longitude = coords
+            _LOGGER.debug("Fetched coordinates for station %s: %.5f, %.5f", self.station, *coords)
 
     async def _fetch_sensor(
         self, session: aiohttp.ClientSession, sensor_key: str
