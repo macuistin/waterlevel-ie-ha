@@ -4,14 +4,65 @@ on:
   push:
     branches: [main]
   pull_request:
+  schedule:
+    - cron: "23 4 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  pytest:
+  lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
-          python-version: "3.13"
-      - run: pip install -r requirements_test.txt
-      - run: pytest
+          python-version: "3.14"
+          cache: pip
+          cache-dependency-path: requirements_test.txt
+      - run: pip install "ruff>=0.17,<0.18"
+      - run: ruff check .
+      - run: ruff format --check .
+
+  pytest:
+    name: Tests (Home Assistant ${{ matrix.home-assistant }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # The minimum in hacs.json. Plugin 0.13.210 pins homeassistant 2025.2.0.
+          - home-assistant: "2025.2.0"
+            python: "3.13"
+            pin: "pytest-homeassistant-custom-component==0.13.210"
+          - home-assistant: latest
+            python: "3.14"
+            pin: ""
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+          cache-dependency-path: requirements_test.txt
+      - run: pip install -r requirements_test.txt ${{ matrix.pin }}
+      # Fails below the coverage floor in pyproject.toml
+      - run: python -m pytest -q --cov
+
+  # Early warning for the next Home Assistant release. Does not fail the workflow.
+  pytest-beta:
+    name: Tests (Home Assistant beta, not blocking)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+      - run: pip install --pre -r requirements_test.txt
+      - run: python -m pytest -q

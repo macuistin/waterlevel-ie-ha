@@ -1,54 +1,48 @@
-"""Binary sensor platform for Waterlevel.ie — flood alert on/off."""
+"""Binary sensor platform for Water Level IE: flood alert on/off."""
+
 from __future__ import annotations
-from homeassistant.components.binary_sensor import BinarySensorDeviceClass, BinarySensorEntity
-from homeassistant.config_entries import ConfigEntry
+
+from typing import Any
+
+from homeassistant.components.binary_sensor import (
+    BinarySensorDeviceClass,
+    BinarySensorEntity,
+)
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.update_coordinator import CoordinatorEntity
-from .const import DOMAIN, STATION_PAGE_URL
-from .coordinator import WaterlevelCoordinator
+
+from .const import WATER_LEVEL
+from .coordinator import WaterlevelConfigEntry, WaterlevelCoordinator
+from .entity import WaterlevelEntity
+
+# Entities only read the coordinator's data, so updates need no limit
+PARALLEL_UPDATES = 0
 
 
 async def async_setup_entry(
-    hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
+    hass: HomeAssistant,
+    entry: WaterlevelConfigEntry,
+    async_add_entities: AddEntitiesCallback,
 ) -> None:
-    coordinator: WaterlevelCoordinator = hass.data[DOMAIN][entry.entry_id]
-    if "0001" in coordinator.available_sensors:
+    coordinator = entry.runtime_data
+    if WATER_LEVEL in coordinator.available_sensors:
         async_add_entities([FloodAlertBinarySensor(coordinator)])
 
 
-class FloodAlertBinarySensor(CoordinatorEntity, BinarySensorEntity):
-    """Binary sensor: on when flood stage is watch / alert / serious."""
+class FloodAlertBinarySensor(WaterlevelEntity, BinarySensorEntity):
+    """On when the flood stage is watch, alert or serious; unknown with no level."""
 
-    _attr_has_entity_name = True
-    _attr_name = "Flood Alert"
+    _attr_translation_key = "flood_alert"
     _attr_device_class = BinarySensorDeviceClass.SAFETY
 
     def __init__(self, coordinator: WaterlevelCoordinator) -> None:
-        super().__init__(coordinator)
-        self._attr_unique_id = f"{DOMAIN}_{coordinator.station}_flood_alert"
-        station_url = STATION_PAGE_URL.format(station_padded=coordinator.station.zfill(10))
-        device_info = DeviceInfo(
-            identifiers={(DOMAIN, coordinator.station)},
-            name=coordinator.station_name,
-            manufacturer="OPW Ireland",
-            model=f"Gauge Station {coordinator.station}",
-            configuration_url=station_url,
-        )
-        self._attr_device_info = device_info
+        super().__init__(coordinator, "flood_alert")
 
     @property
-    def is_on(self) -> bool:
-        if self.coordinator.data is None:
-            return False
-        stage = self.coordinator.data.get("flood_stage", "normal")
-        return stage != "normal"
+    def is_on(self) -> bool | None:
+        stage = self.coordinator.flood_stage()
+        return None if stage is None else stage != "normal"
 
     @property
-    def extra_state_attributes(self) -> dict:
-        attrs = {}
-        if self.coordinator.latitude is not None:
-            attrs["latitude"] = self.coordinator.latitude
-            attrs["longitude"] = self.coordinator.longitude
-        return attrs
+    def extra_state_attributes(self) -> dict[str, Any]:
+        return self._location_attributes()
