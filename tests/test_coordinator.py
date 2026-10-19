@@ -135,6 +135,10 @@ async def test_detect_station_probes_csvs_when_page_fails(
     )
     aioclient_mock.get(SUMMARY, exc=aiohttp.ClientError("down"))
     aioclient_mock.get(GEOJSON_URL, status=404)
+    aioclient_mock.get(
+        "https://waterlevel.ie/hydro-data/data/internet/stations/0/14029/Q/week.json",
+        exc=aiohttp.ClientError("down"),
+    )
 
     info = await _detect_station(WaterlevelApi(async_get_clientsession(hass)), "14029")
     assert info == {

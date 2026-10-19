@@ -19,17 +19,28 @@ from homeassistant.const import (
     UnitOfLength,
     UnitOfTemperature,
     UnitOfTime,
+    UnitOfVolumeFlowRate,
 )
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.util import dt as dt_util
 
-from .const import FLOOD_STAGES, SENSOR_TYPES, THRESHOLD_ENTITIES, WATER_LEVEL
+from .const import FLOOD_STAGES, SENSOR_TYPES, THRESHOLD_ENTITIES, TREND_RATE, WATER_LEVEL
 from .coordinator import WaterlevelConfigEntry, WaterlevelCoordinator
 from .entity import WaterlevelEntity
 
 # Entities only read the coordinator's data, so updates need no limit
 PARALLEL_UPDATES = 0
+
+
+# m³/s is a volume flow rate unit only in newer Home Assistant releases; on older ones
+# Discharge has no device class, so the unit isn't rejected
+CUBIC_METERS_PER_SECOND = "m³/s"
+_FLOW_DEVICE_CLASS = (
+    SensorDeviceClass.VOLUME_FLOW_RATE
+    if CUBIC_METERS_PER_SECOND in {unit.value for unit in UnitOfVolumeFlowRate}
+    else None
+)
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -82,8 +93,24 @@ SENSOR_DESCRIPTIONS: dict[str, WaterlevelSensorEntityDescription] = {
         _level("0001_daily_mean", "daily_mean_water_level"),
         _level("0001_daily_min", "daily_min_water_level"),
         _level("0001_daily_max", "daily_max_water_level"),
+        WaterlevelSensorEntityDescription(
+            key="discharge",
+            translation_key="discharge",
+            native_unit_of_measurement=CUBIC_METERS_PER_SECOND,
+            device_class=_FLOW_DEVICE_CLASS,
+            state_class=SensorStateClass.MEASUREMENT,
+            suggested_display_precision=2,
+        ),
     )
 }
+
+TREND_RATE_DESCRIPTION = WaterlevelSensorEntityDescription(
+    key=TREND_RATE,
+    translation_key="water_level_trend",
+    native_unit_of_measurement="m/h",
+    state_class=SensorStateClass.MEASUREMENT,
+    suggested_display_precision=3,
+)
 
 FLOOD_STAGE_DESCRIPTION = SensorEntityDescription(
     key="flood_stage",
@@ -120,7 +147,10 @@ async def async_setup_entry(
         if key in SENSOR_DESCRIPTIONS
     ]
     if WATER_LEVEL in coordinator.available_sensors:
-        entities.append(FloodStageSensor(coordinator))
+        entities += [
+            FloodStageSensor(coordinator),
+            WaterlevelSensor(coordinator, TREND_RATE_DESCRIPTION),
+        ]
     if any(key in SENSOR_TYPES for key in coordinator.available_sensors):
         entities += [LastReadingSensor(coordinator), DataAgeSensor(coordinator)]
     async_add_entities(entities)

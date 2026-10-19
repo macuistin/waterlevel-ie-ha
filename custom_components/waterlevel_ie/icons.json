@@ -10,6 +10,8 @@
       "daily_mean_water_level": { "default": "mdi:waves-arrow-up" },
       "daily_min_water_level": { "default": "mdi:arrow-collapse-down" },
       "daily_max_water_level": { "default": "mdi:arrow-collapse-up" },
+      "water_level_trend": { "default": "mdi:chart-line-variant" },
+      "discharge": { "default": "mdi:waves-arrow-right" },
       "last_reading": { "default": "mdi:clock-outline" },
       "data_age": { "default": "mdi:clock-alert-outline" },
       "flood_stage": {

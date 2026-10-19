@@ -29,9 +29,11 @@ from .const import (
     DEFAULT_STALE_HOURS,
     DOMAIN,
     FLOOD_STAGES,
+    HYDRO_SENSOR_TYPES,
     SENSOR_TYPES,
     SUMMARY_SENSOR_TYPES,
     THRESHOLD_ENTITIES,
+    TREND_RATE,
     WATER_LEVEL,
 )
 from .thresholds import datum_offset, suggest_thresholds
@@ -44,8 +46,29 @@ SUMMARY_TTL = timedelta(hours=1)
 # Trend threshold: ±this many metres vs yesterday mean = rising/falling
 TREND_THRESHOLD = 0.02
 DATA_LATEST = f"{DOMAIN}_latest"
+# The trend rate is fitted over this much recent history...
+TREND_WINDOW = timedelta(hours=3)
+# ...and needs readings spanning at least this long
+TREND_MIN_SPAN = timedelta(minutes=45)
 
 type WaterlevelConfigEntry = ConfigEntry[WaterlevelCoordinator]
+
+
+def trend_rate(readings: list[Reading]) -> float | None:
+    """Rate of change in m/h: the least-squares slope over the last TREND_WINDOW.
+
+    readings must be oldest first. Returns None without enough recent readings.
+    """
+    if not readings:
+        return None
+    recent = [r for r in readings if r.time >= readings[-1].time - TREND_WINDOW]
+    if len(recent) < 3 or recent[-1].time - recent[0].time < TREND_MIN_SPAN:
+        return None
+    hours = [(r.time - recent[0].time).total_seconds() / 3600 for r in recent]
+    mean_h = sum(hours) / len(hours)
+    mean_v = sum(r.value for r in recent) / len(recent)
+    slope = sum((h - mean_h) * (r.value - mean_v) for h, r in zip(hours, recent, strict=True))
+    return round(slope / sum((h - mean_h) ** 2 for h in hours), 3)
 
 
 class LatestReadings:
@@ -241,6 +264,24 @@ class WaterlevelCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             if reading is None:
                 reading = await self._fetch_last_reading(key)
             data[key] = self._keep_reading(key, reading)
+
+        for key in (k for k in self.available_sensors if k in HYDRO_SENSOR_TYPES):
+            cfg = HYDRO_SENSOR_TYPES[key]
+            try:
+                readings = await self.api.hydro_series(
+                    self.station, cfg["hydro_param"], "week", cfg["hydro_series"]
+                )
+            except WaterlevelError as err:
+                _LOGGER.debug("Failed to fetch %s for station %s: %s", key, self.station, err)
+                readings = []
+            data[key] = self._keep_reading(key, readings[-1] if readings else None)
+
+        # Rate of change from the last few hours of water levels
+        if week := self._week.get(WATER_LEVEL):
+            current = self._readings.get(WATER_LEVEL)
+            if current and current.time > week[-1].time:
+                week = [*week, current]
+            data[TREND_RATE] = trend_rate(week)
 
         if live_keys and self.is_stale():
             # Nothing usable: mark the entities unavailable rather than unknown, or

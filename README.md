@@ -54,6 +54,8 @@ Each gauge station becomes a **device** in Home Assistant with all its sensors, 
 | Daily Min Water Level | m | Rolling daily minimum |
 | Daily Max Water Level | m | Rolling daily maximum |
 | Flood Stage | — | Current flood stage: `normal`, `watch`, `alert`, or `serious` |
+| Water Level Trend | m/h | How fast the level is rising (positive) or falling (negative), fitted over the last 3 hours of readings |
+| Discharge | m³/s | River flow, from [OPW Hydro-Data](https://waterlevel.ie/hydro-data/). Only at stations where the OPW still reports flow |
 | Last Reading | — | Time of the station's newest reading from any sensor |
 | Data Age | min | Minutes since that reading. Diagnostic |
 
@@ -150,7 +152,7 @@ Find station numbers and rivers at [waterlevel.ie/group/list](https://waterlevel
 
 ## How the data is updated
 
-Every 15 minutes, the integration reads OPW's latest-readings file, which holds the newest reading of every sensor on every station. It is downloaded at most once every 15 minutes and shared by all your stations, so adding more stations doesn't add more of these downloads. For Water Level, each station also reads its last 7 days to work out `week_min` and `week_max`, and uses whichever reading is newer. A sensor missing from the shared file falls back to that station's readings for today, then for the last 7 days. The daily mean, min and max come from the station's summary file, which waterlevel.ie updates once a day, so they describe yesterday; it is re-read at most once an hour. Coordinates come from the waterlevel.ie station map when the station is added. The station's Hydro-Data history, used to suggest thresholds, is read once when the station is added; if that fails it is tried again next time Home Assistant starts.
+Every 15 minutes, the integration reads OPW's latest-readings file, which holds the newest reading of every sensor on every station. It is downloaded at most once every 15 minutes and shared by all your stations, so adding more stations doesn't add more of these downloads. For Water Level, each station also reads its last 7 days to work out `week_min` and `week_max`, and uses whichever reading is newer. A sensor missing from the shared file falls back to that station's readings for today, then for the last 7 days. The daily mean, min and max come from the station's summary file, which waterlevel.ie updates once a day, so they describe yesterday; it is re-read at most once an hour. Discharge is read from the station's OPW Hydro-Data week of flow readings at each update. Coordinates come from the waterlevel.ie station map when the station is added. The station's Hydro-Data history, used to suggest thresholds, is read once when the station is added; if that fails it is tried again next time Home Assistant starts.
 
 The flood stage and Flood Alert are worked out in Home Assistant from the latest Water Level and your thresholds; changing a threshold updates them straight away without a download.
 

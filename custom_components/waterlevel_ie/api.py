@@ -7,7 +7,7 @@ here, so it can be tested without Home Assistant. The parse_* functions are pure
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 import logging
 import re
 from typing import Any
@@ -19,6 +19,7 @@ from .const import (
     GEOJSON_URL,
     GROUP_LIST_URL,
     GROUP_URL,
+    HYDRO_SENSOR_TYPES,
     HYDRO_SERIES_URL,
     LATEST_GEOJSON_URL,
     SENSOR_TYPES,
@@ -30,6 +31,8 @@ from .const import (
 _LOGGER = logging.getLogger(__name__)
 TIMEOUT = aiohttp.ClientTimeout(total=30)
 PROBE_TIMEOUT = aiohttp.ClientTimeout(total=10)
+# A Hydro-Data series with nothing newer than this is treated as discontinued
+HYDRO_MAX_AGE = timedelta(days=7)
 
 
 class WaterlevelError(Exception):
@@ -263,8 +266,9 @@ class WaterlevelApi:
 
         Sensors are read from the station page's links; if the page can't be read,
         each sensor's day CSV is probed instead. Daily summary sensors are added when
-        the summary CSV has daily rows. Raises StationNotFound if nothing is found, or
-        WaterlevelError if waterlevel.ie can't be reached at all.
+        the summary CSV has daily rows, and discharge when Hydro-Data still reports it.
+        Raises StationNotFound if nothing is found, or WaterlevelError if waterlevel.ie
+        can't be reached at all.
         """
         name: str | None = None
         available: list[str] = []
@@ -309,4 +313,14 @@ class WaterlevelApi:
                 )
         if not available:
             raise StationNotFound(f"No sensor data found for station {station}")
+        # Flow from OPW Hydro-Data, where it's measured and still reported
+        for key, cfg in HYDRO_SENSOR_TYPES.items():
+            try:
+                readings = await self.hydro_series(
+                    station, cfg["hydro_param"], "week", cfg["hydro_series"]
+                )
+            except WaterlevelError:
+                continue
+            if readings and datetime.now(UTC) - readings[-1].time < HYDRO_MAX_AGE:
+                available.append(key)
         return name, available

@@ -105,6 +105,12 @@
       "daily_max_water_level": {
         "name": "Daily Max Water Level"
       },
+      "water_level_trend": {
+        "name": "Water Level Trend"
+      },
+      "discharge": {
+        "name": "Discharge"
+      },
       "flood_stage": {
         "name": "Flood Stage",
         "state": {

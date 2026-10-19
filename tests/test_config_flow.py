@@ -43,6 +43,11 @@ def _mock_station(aioclient_mock: AiohttpClientMocker, station: str = "14029") -
         f"https://waterlevel.ie/{padded}/0001/summary/download/data.csv", text=SUMMARY_CSV
     )
     aioclient_mock.get(GEOJSON_URL, json=GEOJSON)
+    # No flow data for this station
+    aioclient_mock.get(
+        f"https://waterlevel.ie/hydro-data/data/internet/stations/0/{station}/Q/week.json",
+        status=404,
+    )
 
 
 @pytest.mark.parametrize(

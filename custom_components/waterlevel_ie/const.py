@@ -45,6 +45,13 @@ SUMMARY_SENSOR_TYPES = {
     "0001_daily_max": {"summary_source": "0001", "summary_col": "max"},
 }
 
+# Sensors read from OPW Hydro-Data rather than the waterlevel.ie files
+HYDRO_SENSOR_TYPES = {
+    "discharge": {"hydro_param": "Q", "hydro_series": "WEB.Cmd.Runoff"},
+}
+# Water level rate of change, worked out from the week of readings
+TREND_RATE = "trend_rate"
+
 CONF_STATION = "station"
 CONF_STATION_NAME = "station_name"
 CONF_AVAILABLE_SENSORS = "available_sensors"
