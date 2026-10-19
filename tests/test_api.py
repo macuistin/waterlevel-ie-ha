@@ -108,6 +108,30 @@ def test_parse_groups_and_stations() -> None:
     ) == {"14029": "Graiguenamanagh"}
 
 
+def test_parse_groups_and_stations_from_absolute_links() -> None:
+    """Links may be absolute, carry other attributes, wrap their text or use entities."""
+    groups = """
+    <ul>
+      <li><a class="group" href="https://waterlevel.ie/group/25/">Ballysadare - water level</a></li>
+      <li><a href='https://waterlevel.ie/group/4'>
+        <span>Barrow &amp; Nore</span> - water level</a></li>
+      <li><a href="https://waterlevel.ie/group/30/">Lough Corrib - OD</a></li>
+      <li><a href="https://example.com/group/9/">Elsewhere</a></li>
+    </ul>
+    """
+    assert parse_groups(groups) == {
+        "25": "Ballysadare",
+        "4": "Barrow & Nore",
+        "30": "Lough Corrib - OD",
+    }
+    stations = """
+    <li><a href="https://waterlevel.ie/0000014003/" title="Borness">Borness</a></li>
+    <li><a href="https://waterlevel.ie/0000014003/0001/">Water level</a></li>
+    <li><a href="https://www.waterlevel.ie/0000014004/">Clonbulloge</a></li>
+    """
+    assert parse_group_stations(stations) == {"14003": "Borness", "14004": "Clonbulloge"}
+
+
 def test_parse_station_page() -> None:
     name, codes = parse_station_page(
         "<h1>Sensors on Station 14029 Graiguenamanagh Upper</h1>"

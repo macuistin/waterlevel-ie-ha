@@ -6,8 +6,10 @@ here, so it can be tested without Home Assistant. The parse_* functions are pure
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+import html as html_lib
 import logging
 import re
 from typing import Any
@@ -187,11 +189,28 @@ def find_station_coords(geo: dict, station: str) -> tuple[float, float] | None:
     return None
 
 
+def _links(html: str, path: str) -> Iterator[re.Match[str]]:
+    """Links to a waterlevel.ie path, relative or absolute, with any other attributes."""
+    return re.finditer(
+        r"<a\b[^>]*?\bhref=[\"'](?:https?://(?:www\.)?waterlevel\.ie)?/"
+        + path
+        + r"/?[\"'][^>]*>(.*?)</a>",
+        html,
+        re.I | re.S,
+    )
+
+
+def _link_text(match: re.Match[str]) -> str:
+    """A link's text, without tags, entities or extra whitespace."""
+    text = html_lib.unescape(re.sub(r"<[^>]+>", "", match.group(match.lastindex or 0)))
+    return " ".join(text.split())
+
+
 def parse_groups(html: str) -> dict[str, str]:
     """Parse the river group list page into {group_id: river name}, sorted by name."""
     groups: dict[str, str] = {}
-    for m in re.finditer(r'href="/group/(\d+)/">([^<]+)</a>', html):
-        gid, name = m.group(1), m.group(2).strip()
+    for m in _links(html, r"group/(\d+)"):
+        gid, name = m.group(1), _link_text(m)
         display = re.sub(r"\s*[-\u2013]\s*water level.*$", "", name, flags=re.I).strip()
         groups[gid] = display or name
     return dict(sorted(groups.items(), key=lambda kv: kv[1]))
@@ -200,9 +219,9 @@ def parse_groups(html: str) -> dict[str, str]:
 def parse_group_stations(html: str) -> dict[str, str]:
     """Parse a river group page into {station: station name}, sorted by name."""
     stations: dict[str, str] = {}
-    for m in re.finditer(r'href="/(\d{10})/">([^<]+)</a>', html):
-        if int(m.group(1)):
-            stations[str(int(m.group(1))).zfill(5)] = m.group(2).strip()
+    for m in _links(html, r"(\d{10})"):
+        if int(m.group(1)) and (name := _link_text(m)):
+            stations[str(int(m.group(1))).zfill(5)] = name
     return dict(sorted(stations.items(), key=lambda kv: kv[1]))
 
 

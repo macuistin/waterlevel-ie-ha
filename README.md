@@ -285,7 +285,7 @@ automation:
 
 ## Troubleshooting
 
-**Entities are unavailable.** The station has sent no reading for 3 hours, or waterlevel.ie can't be reached. Data Stale and Data Age show how long it has been. Check [the station's page](https://waterlevel.ie/hydro-data/) in a browser. The entities come back on their own at the next successful update.
+**Entities are unavailable.** The station has sent no reading for 3 hours, or waterlevel.ie can't be reached. Data Stale and Data Age show how long it has been. Check [the station's page](https://waterlevel.ie/hydro-data/) in a browser. The entities come back on their own at the next successful update. A station that had already stopped reporting when you added it still sets up this way, with Data Stale on.
 
 **"Could not load the river list".** waterlevel.ie's river pages didn't load. Try again later, or choose **Enter a station number** instead.
 
