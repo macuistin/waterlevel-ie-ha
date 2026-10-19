@@ -231,3 +231,26 @@ async def test_unload(hass: HomeAssistant, aioclient_mock: AiohttpClientMocker) 
     entry = await _setup(hass)
     assert await hass.config_entries.async_unload(entry.entry_id)
     assert entry.state is ConfigEntryState.NOT_LOADED
+
+
+async def test_station_without_water_level(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
+) -> None:
+    """A temperature-only station gets no flood entities, and no coordinates when unknown."""
+    aioclient_mock.get(DATA_URL.format(period="day", sensor="0002"), text=_csv("9.5"))
+    aioclient_mock.get(GEOJSON_URL, json={"features": []})
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id=f"{DOMAIN}_{STATION}",
+        data={"station": STATION, "station_name": "Graiguenamanagh", "available_sensors": ["0002"]},
+    )
+    entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    temperature = hass.states.get("sensor.graiguenamanagh_temperature")
+    assert temperature.state == "9.5"
+    assert "latitude" not in temperature.attributes
+    assert hass.states.async_entity_ids("binary_sensor") == []
+    assert hass.states.async_entity_ids("number") == []
+    assert hass.states.get("sensor.graiguenamanagh_flood_stage") is None
