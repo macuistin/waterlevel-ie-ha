@@ -319,6 +319,12 @@ Please do not poll more frequently than every 15 minutes. See [waterlevel.ie/pag
 
 ---
 
+## Changes
+
+What each release changed is in [CHANGELOG.md](CHANGELOG.md).
+
+---
+
 ## Contributing
 
 Issues and PRs welcome. Open an issue at the [issue tracker](https://github.com/macuistin/waterlevel-ie-ha/issues).

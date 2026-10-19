@@ -49,6 +49,13 @@ doesn't meet.
 - Keep the version in `manifest.json` and `pyproject.toml` the same (a test checks).
 - Every behaviour change comes with a test. CI fails below 95% coverage, branches included
   (`fail_under` in `pyproject.toml`); don't lower it to get a PR green.
+- Add user-visible changes to `CHANGELOG.md` under `## Unreleased`, grouped as **Added**,
+  **Changed**, **Fixes** and **Upgrading**.
+- Releasing: rename `## Unreleased` to `## vX.Y.Z` with a sentence or two on what the release
+  does, run `python scripts/set_version.py X.Y.Z`, then `--check vX.Y.Z`, in a release PR.
+  After it merges, the maintainer pushes the tag `vX.Y.Z` on main and
+  `.github/workflows/release.yml` publishes the GitHub release from the changelog section
+  (a `b` or `rc` tag publishes a pre-release). Never push a tag or create a release yourself.
 
 ## Commands
 
