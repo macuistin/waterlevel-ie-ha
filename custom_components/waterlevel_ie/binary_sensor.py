@@ -35,7 +35,10 @@ async def async_setup_entry(
 
 
 class FloodAlertBinarySensor(WaterlevelEntity, BinarySensorEntity):
-    """On when the flood stage is watch, alert or serious; unknown with no level."""
+    """On when the flood stage reaches the alert stage option (default watch).
+
+    Unknown with no water level.
+    """
 
     _attr_translation_key = "flood_alert"
     _attr_device_class = BinarySensorDeviceClass.SAFETY
@@ -45,8 +48,7 @@ class FloodAlertBinarySensor(WaterlevelEntity, BinarySensorEntity):
 
     @property
     def is_on(self) -> bool | None:
-        stage = self.coordinator.flood_stage()
-        return None if stage is None else stage != "normal"
+        return self.coordinator.is_alert()
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:

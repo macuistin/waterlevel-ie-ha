@@ -41,7 +41,21 @@ LATEST = {
 }
 
 
+HYDRO_URL = (
+    "https://waterlevel.ie/hydro-data/data/internet/stations/0/{station}/{param}/{period}.json"
+)
+
+
 def _mock_station(aioclient_mock: AiohttpClientMocker, station: str = "14029") -> None:
+    """Mock a station's waterlevel.ie files. It has no OPW Hydro-Data history.
+
+    Register any Hydro-Data mocks a test needs before calling this; the first match wins.
+    """
+    for param in ("S", "Q"):
+        for period in ("week", "year"):
+            aioclient_mock.get(
+                HYDRO_URL.format(station=station, param=param, period=period), status=404
+            )
     aioclient_mock.get(f"https://waterlevel.ie/data/day/{station}_0001.csv", text=DAY_CSV)
     aioclient_mock.get(f"https://waterlevel.ie/data/week/{station}_0001.csv", text=WEEK_CSV)
     aioclient_mock.get(

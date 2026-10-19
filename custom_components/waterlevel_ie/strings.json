@@ -60,11 +60,13 @@
         "data": {
           "scan_interval": "Update interval",
           "stale_hours": "Mark data as stale after",
+          "alert_stage": "Turn Flood Alert on from",
           "redetect_sensors": "Check the station for new sensors"
         },
         "data_description": {
           "scan_interval": "How often to read new data from waterlevel.ie. 15 minutes is the shortest allowed.",
           "stale_hours": "When the station hasn't sent a reading for this long, Data Stale turns on and the other entities become unavailable.",
+          "alert_stage": "The lowest flood stage that turns the Flood Alert binary sensor on.",
           "redetect_sensors": "Looks up which sensors the station has now and adds any new ones."
         }
       }
@@ -120,6 +122,12 @@
           },
           "serious_level_m": {
             "name": "Serious level"
+          },
+          "typical_level_m": {
+            "name": "Typical level"
+          },
+          "record_daily_mean_m": {
+            "name": "Record daily mean"
           }
         }
       },
@@ -145,13 +153,37 @@
     },
     "number": {
       "watch_level": {
-        "name": "Watch Level"
+        "name": "Watch Level",
+        "state_attributes": {
+          "suggested_value": {
+            "name": "Suggested value"
+          }
+        }
       },
       "alert_level": {
-        "name": "Alert Level"
+        "name": "Alert Level",
+        "state_attributes": {
+          "suggested_value": {
+            "name": "Suggested value"
+          }
+        }
       },
       "serious_level": {
-        "name": "Serious Level"
+        "name": "Serious Level",
+        "state_attributes": {
+          "suggested_value": {
+            "name": "Suggested value"
+          }
+        }
+      }
+    }
+  },
+  "selector": {
+    "alert_stage": {
+      "options": {
+        "watch": "Watch",
+        "alert": "Alert",
+        "serious": "Serious"
       }
     }
   },

@@ -65,20 +65,24 @@ Live sensors carry these attributes: `last_reported` (the time of the reading), 
 
 | Entity | Description |
 |---|---|
-| Flood Alert | `On` when flood stage is watch, alert, or serious. Use this to trigger automations or notifications |
+| Flood Alert | `On` when the flood stage reaches watch or above (you can choose the stage in the station's options). Use this to trigger automations or notifications |
 | Data Stale | `On` when the station has sent nothing for 3 hours. Diagnostic; stays available during an outage so you can alert on it |
 
 ### Number Entities (Flood Thresholds)
 
 Each station has three adjustable threshold entities that control when the flood stage changes:
 
-| Entity | Default | Description |
-|---|---|---|
-| Watch Level | 1.50 m | River rising — worth monitoring |
-| Alert Level | 2.50 m | Significant rise — prepare |
-| Serious Level | 3.50 m | Major flooding in progress |
+| Entity | Suggested from the station's history | Fallback default | Description |
+|---|---|---|---|
+| Watch Level | Daily mean exceeded on 5% of days | 1.50 m | River rising — worth monitoring |
+| Alert Level | Exceeded on 1% of days | 2.50 m | Significant rise — prepare |
+| Serious Level | Exceeded on 0.1% of days | 3.50 m | Major flooding in progress |
 
-These are set per-station and persist across restarts. Adjust them directly from the device page in **Settings → Devices & Services**, or use them in dashboards as interactive controls. Default values are based on OPW flood relief scheme engineering data for the River Barrow — tune them to match your specific gauge and local conditions.
+Every gauge measures from its own datum, so one set of defaults can't fit every station. When you add a station, the integration reads its full daily record from [OPW Hydro-Data](https://waterlevel.ie/hydro-data/) once, lines it up with the live readings, and suggests thresholds in the same units as Water Level. Each threshold entity shows its `suggested_value` attribute, and Flood Stage shows the station's `typical_level_m` (median daily mean) and `record_daily_mean_m`. Stations with less than a year of Hydro-Data history, or whose history can't be lined up with the live readings, keep the fallback defaults, which come from OPW flood relief scheme data for the River Barrow.
+
+Why 5%, 1% and 0.1%: on a typical record that means Watch is reached on about 18 days a year, which is often enough to notice a wet spell without crying wolf; Alert on about 4 days a year, the river's highest flows of most years; and Serious roughly once every three years, which most records show only in genuine floods. These are statistics, not OPW flood warnings, and they come from daily means, so short peaks run higher than the record suggests. Check them against what you know of the river.
+
+Thresholds you've set yourself are never changed by a suggestion. They persist across restarts, and you can adjust them from the device page in **Settings → Devices & Services** or use them in dashboards as interactive controls.
 
 ### Map Support
 
@@ -135,6 +139,7 @@ The flood thresholds are set on the device page after setup. Each station also h
 |---|---|---|
 | Update interval | 15 min | How often the station reads new data. 15 minutes is the shortest allowed, as the OPW asks |
 | Mark data as stale after | 3 h | How long without a reading before Data Stale turns on and the other entities become unavailable |
+| Turn Flood Alert on from | Watch | The lowest flood stage that turns Flood Alert on: Watch, Alert or Serious |
 | Check the station for new sensors | off | Looks up the station's sensors again and adds any new ones, for example after the OPW adds a temperature probe |
 
 Saving the options reloads the station.
@@ -145,7 +150,7 @@ Find station numbers and rivers at [waterlevel.ie/group/list](https://waterlevel
 
 ## How the data is updated
 
-Every 15 minutes, the integration reads OPW's latest-readings file, which holds the newest reading of every sensor on every station. It is downloaded at most once every 15 minutes and shared by all your stations, so adding more stations doesn't add more of these downloads. For Water Level, each station also reads its last 7 days to work out `week_min` and `week_max`, and uses whichever reading is newer. A sensor missing from the shared file falls back to that station's readings for today, then for the last 7 days. The daily mean, min and max come from the station's summary file, which waterlevel.ie updates once a day, so they describe yesterday; it is re-read at most once an hour. Coordinates come from the waterlevel.ie station map when the station is added.
+Every 15 minutes, the integration reads OPW's latest-readings file, which holds the newest reading of every sensor on every station. It is downloaded at most once every 15 minutes and shared by all your stations, so adding more stations doesn't add more of these downloads. For Water Level, each station also reads its last 7 days to work out `week_min` and `week_max`, and uses whichever reading is newer. A sensor missing from the shared file falls back to that station's readings for today, then for the last 7 days. The daily mean, min and max come from the station's summary file, which waterlevel.ie updates once a day, so they describe yesterday; it is re-read at most once an hour. Coordinates come from the waterlevel.ie station map when the station is added. The station's Hydro-Data history, used to suggest thresholds, is read once when the station is added; if that fails it is tried again next time Home Assistant starts.
 
 The flood stage and Flood Alert are worked out in Home Assistant from the latest Water Level and your thresholds; changing a threshold updates them straight away without a download.
 
@@ -214,7 +219,7 @@ automation:
 ## Known limitations
 
 - Levels are relative to each station's own datum, so 2 m at one station says nothing about 2 m at another. Use Water Level OD to compare stations.
-- The default thresholds (1.5, 2.5, 3.5 m) come from one River Barrow station and will be wrong elsewhere. Set them from the station's own history before relying on Flood Alert.
+- Suggested thresholds come from daily means and the station's own record, and stations with less than a year of history fall back to defaults from one River Barrow station. Check them before relying on Flood Alert.
 - Temperature is the gauge housing's temperature, not the water's.
 - Gauges report every 15 minutes, and readings can arrive late or be revised by the OPW, so the latest value can be up to about half an hour old.
 - The river and station lists during setup are read from waterlevel.ie's web pages. If the site's layout changes, browsing by river can fail; adding by station number still works.
@@ -230,7 +235,7 @@ automation:
 
 **"No sensor data found for that station".** The number doesn't match a station that publishes data. Copy the address from the station's page on waterlevel.ie and paste it in.
 
-**Flood Stage is wrong for my river.** The thresholds are set per station on the device page; the defaults aren't tuned to your gauge.
+**Flood Stage is wrong for my river.** The thresholds are set per station on the device page. Compare them with the `suggested_value` attribute, and set what matches your stretch of river.
 
 **Battery Voltage or Signal Strength is missing.** They're disabled by default. Enable them from the device page.
 

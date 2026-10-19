@@ -26,6 +26,13 @@ GEOJSON = {
     "features": [{"properties": {"ref": "14029"}, "geometry": {"coordinates": [-6.95, 52.54]}}]
 }
 SENSORS = ["0001", "0002", "0003", "0014", "0001_daily_mean"]
+HYDRO_URL = "https://waterlevel.ie/hydro-data/data/internet/stations/0/14029/{param}/{period}.json"
+
+
+def _mock_no_history(aioclient_mock: AiohttpClientMocker) -> None:
+    for param in ("S", "Q"):
+        for period in ("week", "year"):
+            aioclient_mock.get(HYDRO_URL.format(param=param, period=period), status=404)
 
 
 def _csv(value: str, time: str = "2026-10-19T18:00:00Z") -> str:
@@ -40,6 +47,7 @@ def _mock_readings(
     time: str = "2026-10-19T18:00:00Z",
 ) -> None:
     aioclient_mock.clear_requests()
+    _mock_no_history(aioclient_mock)
     readings = {"0001": level, "0002": "11.5", "0003": "12.9", "0014": "-71"}
     for sensor, value in readings.items():
         for period in ("day", "week"):
@@ -56,6 +64,7 @@ def _mock_readings(
 
 def _mock_outage(aioclient_mock: AiohttpClientMocker) -> None:
     aioclient_mock.clear_requests()
+    _mock_no_history(aioclient_mock)
     for sensor in ("0001", "0002", "0003", "0014"):
         for period in ("day", "week"):
             aioclient_mock.get(

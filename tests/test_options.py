@@ -41,7 +41,12 @@ async def test_defaults(hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
     assert result["type"] is FlowResultType.FORM
     schema = result["data_schema"].schema
     defaults = {str(key): key.default() for key in schema}
-    assert defaults == {"scan_interval": 15, "stale_hours": 3, "redetect_sensors": False}
+    assert defaults == {
+        "scan_interval": 15,
+        "stale_hours": 3,
+        "alert_stage": "watch",
+        "redetect_sensors": False,
+    }
 
 
 async def test_change_interval_and_stale_limit(
@@ -53,7 +58,7 @@ async def test_change_interval_and_stale_limit(
         result["flow_id"], {"scan_interval": 30, "stale_hours": 6}
     )
     assert result["type"] is FlowResultType.CREATE_ENTRY
-    assert entry.options == {"scan_interval": 30, "stale_hours": 6}
+    assert entry.options == {"scan_interval": 30, "stale_hours": 6, "alert_stage": "watch"}
     await hass.async_block_till_done()
 
     # The station reloaded with the new settings
@@ -91,7 +96,7 @@ async def test_redetect_adds_new_sensors(
         "0001_daily_min",
         "0001_daily_max",
     ]
-    assert entry.options == {"scan_interval": 15, "stale_hours": 3}
+    assert entry.options == {"scan_interval": 15, "stale_hours": 3, "alert_stage": "watch"}
     # New sensors and options are saved together, so the station reloads once
     assert reload.call_count == 1
     assert hass.states.get("sensor.graiguenamanagh_temperature").state == "12.3"

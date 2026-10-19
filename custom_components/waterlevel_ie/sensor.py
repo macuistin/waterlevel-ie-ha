@@ -170,6 +170,10 @@ class FloodStageSensor(WaterlevelEntity, SensorEntity):
             for key in THRESHOLD_ENTITIES
             if (value := self.coordinator.get_threshold(key)) is not None
         }
+        suggested = self.coordinator.suggested or {}
+        if "typical" in suggested:
+            attrs["typical_level_m"] = suggested["typical"]
+            attrs["record_daily_mean_m"] = suggested["record"]
         attrs.update(self._location_attributes())
         return attrs
 

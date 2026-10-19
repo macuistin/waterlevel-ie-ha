@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 import logging
 import re
+from typing import Any
 
 import aiohttp
 
@@ -18,6 +19,7 @@ from .const import (
     GEOJSON_URL,
     GROUP_LIST_URL,
     GROUP_URL,
+    HYDRO_SERIES_URL,
     LATEST_GEOJSON_URL,
     SENSOR_TYPES,
     STATION_PAGE_URL,
@@ -127,6 +129,32 @@ def parse_latest(geo: dict) -> dict[str, dict[str, Reading]]:
     return latest
 
 
+def parse_hydro_series(payload: object, shortname: str | None = None) -> list[Reading]:
+    """Parse an OPW Hydro-Data series file into readings, oldest first.
+
+    The file is a list of series ({ts_shortname, columns, data: [[time, value, ...]]}).
+    Uses the series named shortname, or the first series with data.
+    """
+    for series in payload if isinstance(payload, list) else []:
+        if not isinstance(series, dict):
+            continue
+        if shortname and series.get("ts_shortname") != shortname:
+            continue
+        readings = []
+        for row in series.get("data") or []:
+            if len(row) < 2 or row[1] is None:
+                continue
+            try:
+                value = float(row[1])
+            except (TypeError, ValueError):
+                continue
+            if (time := parse_time(str(row[0]))) is not None:
+                readings.append(Reading(time, value))
+        if readings:
+            return readings
+    return []
+
+
 def find_station_coords(geo: dict, station: str) -> tuple[float, float] | None:
     """Return (latitude, longitude) for a station from the station GeoJSON."""
     for feature in geo.get("features", []):
@@ -183,9 +211,11 @@ class WaterlevelApi:
         except (aiohttp.ClientError, TimeoutError) as err:
             raise WaterlevelError(f"Error fetching {url}: {err}") from err
 
-    async def _get_json(self, url: str) -> dict:
+    async def _get_json(self, url: str) -> Any:
         try:
             async with self._session.get(url, timeout=TIMEOUT) as resp:
+                if resp.status == 404:
+                    raise StationNotFound(f"Not found: {url}")
                 resp.raise_for_status()
                 return await resp.json(content_type=None)
         except (aiohttp.ClientError, TimeoutError, ValueError) as err:
@@ -200,6 +230,13 @@ class WaterlevelApi:
         """Most recent daily min/mean/max for a sensor, or {}."""
         url = SUMMARY_URL.format(station_padded=station.zfill(10), sensor=sensor)
         return parse_summary(await self._get_text(url))
+
+    async def hydro_series(
+        self, station: str, param: str, period: str, shortname: str | None = None
+    ) -> list[Reading]:
+        """Readings from OPW Hydro-Data: param "S" (level, absolute) or "Q" (flow)."""
+        url = HYDRO_SERIES_URL.format(station=station, param=param, period=period)
+        return parse_hydro_series(await self._get_json(url), shortname)
 
     async def latest(self) -> dict[str, dict[str, Reading]]:
         """Latest reading of every sensor on every station (one shared file)."""

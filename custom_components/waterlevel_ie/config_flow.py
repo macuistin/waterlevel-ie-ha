@@ -25,6 +25,7 @@ import voluptuous as vol
 
 from .api import StationNotFound, WaterlevelApi, WaterlevelError
 from .const import (
+    CONF_ALERT_STAGE,
     CONF_AVAILABLE_SENSORS,
     CONF_LATITUDE,
     CONF_LONGITUDE,
@@ -33,9 +34,11 @@ from .const import (
     CONF_STALE_HOURS,
     CONF_STATION,
     CONF_STATION_NAME,
+    DEFAULT_ALERT_STAGE,
     DEFAULT_SCAN_INTERVAL,
     DEFAULT_STALE_HOURS,
     DOMAIN,
+    FLOOD_STAGES,
     GROUP_LIST_URL,
     MIN_SCAN_INTERVAL,
 )
@@ -239,6 +242,7 @@ class WaterlevelOptionsFlow(config_entries.OptionsFlow):
             options = {
                 CONF_SCAN_INTERVAL: int(user_input[CONF_SCAN_INTERVAL]),
                 CONF_STALE_HOURS: int(user_input[CONF_STALE_HOURS]),
+                CONF_ALERT_STAGE: user_input.get(CONF_ALERT_STAGE, DEFAULT_ALERT_STAGE),
             }
             if user_input.get(CONF_REDETECT):
                 api = WaterlevelApi(async_get_clientsession(self.hass))
@@ -285,6 +289,16 @@ class WaterlevelOptionsFlow(config_entries.OptionsFlow):
                             step=1,
                             unit_of_measurement="h",
                             mode=NumberSelectorMode.BOX,
+                        )
+                    ),
+                    vol.Required(
+                        CONF_ALERT_STAGE,
+                        default=options.get(CONF_ALERT_STAGE, DEFAULT_ALERT_STAGE),
+                    ): SelectSelector(
+                        SelectSelectorConfig(
+                            options=[stage for stage in FLOOD_STAGES if stage != "normal"],
+                            translation_key=CONF_ALERT_STAGE,
+                            mode=SelectSelectorMode.LIST,
                         )
                     ),
                     vol.Optional(CONF_REDETECT, default=False): BooleanSelector(),

@@ -13,8 +13,9 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import dt as dt_util
 
-from .api import Reading, WaterlevelApi, WaterlevelError
+from .api import Reading, StationNotFound, WaterlevelApi, WaterlevelError
 from .const import (
+    CONF_ALERT_STAGE,
     CONF_AVAILABLE_SENSORS,
     CONF_LATITUDE,
     CONF_LONGITUDE,
@@ -22,14 +23,18 @@ from .const import (
     CONF_STALE_HOURS,
     CONF_STATION,
     CONF_STATION_NAME,
+    CONF_SUGGESTED_THRESHOLDS,
+    DEFAULT_ALERT_STAGE,
     DEFAULT_SCAN_INTERVAL,
     DEFAULT_STALE_HOURS,
     DOMAIN,
+    FLOOD_STAGES,
     SENSOR_TYPES,
     SUMMARY_SENSOR_TYPES,
     THRESHOLD_ENTITIES,
     WATER_LEVEL,
 )
+from .thresholds import datum_offset, suggest_thresholds
 
 _LOGGER = logging.getLogger(__name__)
 # OPW asks for bulk files to be fetched no more than once every 15 minutes
@@ -94,10 +99,19 @@ class WaterlevelCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self.longitude: float | None = entry.data.get(CONF_LONGITUDE)
         self.api = WaterlevelApi(async_get_clientsession(hass))
         self._latest = async_get_latest(hass)
-        # Flood thresholds: THRESHOLD_ENTITIES defaults, overridden by the number entities
+        # Thresholds suggested from the station's history: None until looked up,
+        # {} when the station has no usable history
+        self.suggested: dict[str, float] | None = entry.data.get(CONF_SUGGESTED_THRESHOLDS)
+        # Flood thresholds: the suggestions where there are some, else the
+        # THRESHOLD_ENTITIES defaults, overridden by the number entities
         self._thresholds: dict[str, float | None] = {
-            key: cfg["default"] for key, cfg in THRESHOLD_ENTITIES.items()
+            key: (self.suggested or {}).get(key, cfg["default"])
+            for key, cfg in THRESHOLD_ENTITIES.items()
         }
+        # Thresholds set by the user (or restored from a previous run)
+        self._user_thresholds: set[str] = set()
+        # Lowest flood stage that turns Flood Alert on
+        self.alert_stage: str = entry.options.get(CONF_ALERT_STAGE, DEFAULT_ALERT_STAGE)
         # Extra per-sensor metadata (e.g. last_reported, week_min/max, trend)
         self.sensor_attrs: dict[str, dict] = {}
         # Last good reading per sensor, and the last good week of water levels,
@@ -132,6 +146,36 @@ class WaterlevelCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         The stage is worked out from the reading already held, so this makes no request.
         """
         self._thresholds[key] = value
+        self._user_thresholds.add(key)
+        self.async_update_listeners()
+
+    async def async_load_suggested_thresholds(self) -> None:
+        """Look up thresholds from the station's OPW Hydro-Data history, once.
+
+        Thresholds the user hasn't set move to the suggestions. The result is kept in
+        the config entry so the (large) history file is only fetched once per station.
+        """
+        if self.suggested is not None or WATER_LEVEL not in self.available_sensors:
+            return
+        try:
+            history = await self.api.hydro_series(self.station, "S", "year", "WEB.Day.Mean")
+            recent = await self.api.hydro_series(self.station, "S", "week")
+        except StationNotFound:
+            history = recent = []
+        except WaterlevelError as err:
+            # Try again next time the station is set up
+            _LOGGER.debug("Could not fetch history for station %s: %s", self.station, err)
+            return
+        offset = datum_offset(self._week.get(WATER_LEVEL, []), recent)
+        self.suggested = (suggest_thresholds(history, offset) if offset is not None else None) or {}
+        _LOGGER.debug("Suggested thresholds for station %s: %s", self.station, self.suggested)
+        self.hass.config_entries.async_update_entry(
+            self.config_entry,
+            data={**self.config_entry.data, CONF_SUGGESTED_THRESHOLDS: self.suggested},
+        )
+        for key in THRESHOLD_ENTITIES:
+            if key in self.suggested and key not in self._user_thresholds:
+                self._thresholds[key] = self.suggested[key]
         self.async_update_listeners()
 
     @property
@@ -144,6 +188,12 @@ class WaterlevelCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         """True when no live sensor has a reading newer than stale_after."""
         last = self.last_reading_time
         return last is None or dt_util.utcnow() - last > self.stale_after
+
+    def is_alert(self) -> bool | None:
+        """True when the flood stage is at or above the alert stage option; None if unknown."""
+        if (stage := self.flood_stage()) is None:
+            return None
+        return FLOOD_STAGES.index(stage) >= FLOOD_STAGES.index(self.alert_stage)
 
     def flood_stage(self) -> str | None:
         """Return the flood stage for the latest water level, or None when it is unknown."""
