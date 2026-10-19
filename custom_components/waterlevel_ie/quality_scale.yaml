@@ -27,7 +27,7 @@ rules:
   has-entity-name: done        # WaterlevelEntity sets _attr_has_entity_name
   runtime-data: done           # entry.runtime_data holds the coordinator
   test-before-configure: done  # the flow probes the station before creating the entry
-  test-before-setup: done      # async_config_entry_first_refresh raises ConfigEntryNotReady
+  test-before-setup: done      # first refresh raises ConfigEntryNotReady unless the station has old readings
   unique-config-entry: done    # unique id is the station number
 
   # ── Silver ──────────────────────────────────────────────────────────────────

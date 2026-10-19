@@ -7,6 +7,7 @@ from datetime import timedelta
 import aiohttp
 from freezegun.api import FrozenDateTimeFactory
 from homeassistant.config_entries import ConfigEntryState
+from homeassistant.const import STATE_UNAVAILABLE
 from homeassistant.core import HomeAssistant
 import pytest
 from pytest_homeassistant_custom_component.test_util.aiohttp import AiohttpClientMocker
@@ -52,8 +53,9 @@ async def test_keeps_last_reading_and_flags_stale(
     assert hass.states.get("binary_sensor.graiguenamanagh_data_stale").state == "off"
 
 
-async def test_station_with_only_old_data_is_unavailable(
-    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
+@pytest.mark.usefixtures("entity_registry_enabled_by_default")
+async def test_station_with_only_old_data_sets_up_as_stale(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker, frozen_now: FrozenDateTimeFactory
 ) -> None:
     # A gauge that stopped reporting: its last reading is a day old
     _mock_station(aioclient_mock)
@@ -65,4 +67,24 @@ async def test_station_with_only_old_data_is_unavailable(
     await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
 
-    assert entry.state is ConfigEntryState.SETUP_RETRY
+    # It still sets up, so the freshness entities can say the gauge has gone quiet
+    assert entry.state is ConfigEntryState.LOADED
+    assert hass.states.get("sensor.graiguenamanagh_temperature").state == STATE_UNAVAILABLE
+    assert hass.states.get("binary_sensor.graiguenamanagh_data_stale").state == "on"
+    last = hass.states.get("sensor.graiguenamanagh_last_reading")
+    assert last.state == "2026-10-18T18:00:00+00:00"
+
+    # It keeps polling, and recovers when the gauge reports again
+    coordinator = entry.runtime_data
+    assert coordinator._unsub_refresh is not None
+    aioclient_mock.clear_requests()
+    _mock_station(aioclient_mock)
+    aioclient_mock.get(
+        LATEST_GEOJSON_URL,
+        json={"features": [_feature("14029", "0002", "9.5", "2026-10-19T18:30:00Z")]},
+    )
+    frozen_now.tick(timedelta(minutes=15))
+    await coordinator.async_refresh()
+    await hass.async_block_till_done()
+    assert hass.states.get("sensor.graiguenamanagh_temperature").state == "9.5"
+    assert hass.states.get("binary_sensor.graiguenamanagh_data_stale").state == "off"

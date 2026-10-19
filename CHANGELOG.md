@@ -7,6 +7,10 @@ What each release changed, newest first.
 **Changed**
 - Temperature is disabled by default on newly added stations, because it reads the gauge housing rather than the water. Enable it from the device page if you want it. Stations you already have keep it.
 
+**Fixes**
+- A station that has stopped reporting, such as one whose last reading is days old, now finishes setting up instead of failing with "no reading newer than 3 hours". Its readings show as unavailable, Data Stale is on, and Last Reading shows when it last reported. It updates on its own once the gauge reports again.
+- **Browse by river** could say it couldn't load the river list. It now reads waterlevel.ie's river and station links whether they are relative or absolute.
+
 ## v1.2.0
 
 The first tagged release. It reads one shared OPW feed instead of a file per sensor, keeps readings through short outages, suggests flood thresholds from each station's own history, and adds discharge, a level trend, station options, a "near me" search and a flood warning blueprint. Home Assistant 2025.2.0 or newer is required. After upgrading, compare your flood thresholds with their new `suggested_value` attribute, because existing stations keep the thresholds they had.
