@@ -3,33 +3,44 @@
     "step": {
       "user": {
         "title": "Add a gauge station",
-        "description": "Pick a river from the dropdown to browse its stations, or enter a station number directly. Find all rivers at {groups_url}",
+        "description": "How would you like to find the station?",
+        "menu_options": {
+          "river": "Browse by river",
+          "station_number": "Enter a station number"
+        }
+      },
+      "river": {
+        "title": "Choose a river",
+        "description": "Pick the river or catchment the gauge is on.",
         "data": {
-          "group": "River (browse stations)",
-          "station": "Station number (e.g. {example})"
-        },
-        "data_description": {
-          "group": "Choose a river to see its gauge stations in the next step.",
-          "station": "If you already know the station number, enter it here and skip the river picker."
+          "group": "River"
         }
       },
       "select_station": {
-        "title": "Select a station",
-        "description": "Choose a gauge station on the {river_name}.",
+        "title": "Choose a station",
+        "description": "Gauge stations on the {river_name}. Stations you have already added are not listed.",
         "data": {
           "station": "Station"
+        }
+      },
+      "station_number": {
+        "title": "Enter a station number",
+        "description": "Enter the station number (for example {example}) or paste the station's page address. You can look stations up at {stations_url}",
+        "data": {
+          "station": "Station number or address"
         }
       }
     },
     "error": {
-      "cannot_connect": "Could not reach waterlevel.ie \u2014 check your internet connection.",
-      "invalid_station": "Station number must contain digits only.",
-      "station_not_found": "No sensor data found for that station. Verify it exists at waterlevel.ie.",
-      "select_river_or_station": "Select a river or enter a station number.",
-      "unknown": "Unexpected error \u2014 check the Home Assistant logs."
+      "cannot_connect": "Could not reach waterlevel.ie. Check your internet connection and try again.",
+      "invalid_station": "That doesn't look like a station number. Enter digits only, or paste the station's page address.",
+      "station_not_found": "No sensor data found for that station. Check it exists on waterlevel.ie.",
+      "no_stations": "No stations that you haven't already added were found on this river.",
+      "unknown": "Unexpected error. Check the Home Assistant logs."
     },
     "abort": {
-      "already_configured": "This station is already configured."
+      "already_configured": "This station is already configured.",
+      "cannot_load_rivers": "Could not load the river list from waterlevel.ie. Try again later, or add the station by its number instead."
     }
   }
 }
