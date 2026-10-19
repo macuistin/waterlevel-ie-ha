@@ -1,5 +1,5 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 256" width="1080" height="256">
-  <!-- Waterlevel.ie logo (light theme): the icon with the wordmark. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 256" width="1200" height="256">
+  <!-- Water Level IE logo (light theme): the icon with the wordmark. -->
   <g transform="scale(0.5)">
   <defs>
     <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
@@ -36,5 +36,5 @@
     <path d="M104 172 L150 124 L196 172" fill="none" stroke="#FFFFFF" stroke-width="26" stroke-linecap="round" stroke-linejoin="round"/>
   </g>
   </g>
-  <text x="292" y="168" font-family="Inter, sans-serif" font-weight="700" font-size="124" letter-spacing="-2" fill="#0B3C5D">Waterlevel<tspan fill="#1A7FB8">.ie</tspan></text>
+  <text x="292" y="168" font-family="Inter, sans-serif" font-weight="700" font-size="124" letter-spacing="-2" fill="#0B3C5D">Water Level <tspan fill="#1A7FB8">IE</tspan></text>
 </svg>
