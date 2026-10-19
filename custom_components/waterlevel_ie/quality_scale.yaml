@@ -39,7 +39,7 @@ rules:
     status: exempt
     comment: There is no options flow
   docs-installation-parameters: done  # README: the setup field table under Configuration
-  entity-unavailable: done     # UpdateFailed when every live reading fails; flood stage is unknown with no level
+  entity-unavailable: done     # last readings kept up to 3 h, then UpdateFailed; flood stage is unknown with no level
   integration-owner: done      # @macuistin
   log-when-unavailable: done   # the coordinator logs the outage once and the recovery once; per-sensor failures log at debug
   parallel-updates: done       # PARALLEL_UPDATES = 0 on every platform

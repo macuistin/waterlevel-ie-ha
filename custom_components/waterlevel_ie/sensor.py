@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Any
 
 from homeassistant.components.sensor import (
@@ -17,11 +18,13 @@ from homeassistant.const import (
     UnitOfElectricPotential,
     UnitOfLength,
     UnitOfTemperature,
+    UnitOfTime,
 )
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.util import dt as dt_util
 
-from .const import FLOOD_STAGES, THRESHOLD_ENTITIES, WATER_LEVEL
+from .const import FLOOD_STAGES, SENSOR_TYPES, THRESHOLD_ENTITIES, WATER_LEVEL
 from .coordinator import WaterlevelConfigEntry, WaterlevelCoordinator
 from .entity import WaterlevelEntity
 
@@ -89,6 +92,21 @@ FLOOD_STAGE_DESCRIPTION = SensorEntityDescription(
     options=FLOOD_STAGES,
 )
 
+LAST_READING_DESCRIPTION = SensorEntityDescription(
+    key="last_reading",
+    translation_key="last_reading",
+    device_class=SensorDeviceClass.TIMESTAMP,
+)
+
+DATA_AGE_DESCRIPTION = SensorEntityDescription(
+    key="data_age",
+    translation_key="data_age",
+    device_class=SensorDeviceClass.DURATION,
+    native_unit_of_measurement=UnitOfTime.MINUTES,
+    state_class=SensorStateClass.MEASUREMENT,
+    entity_category=EntityCategory.DIAGNOSTIC,
+)
+
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -103,6 +121,8 @@ async def async_setup_entry(
     ]
     if WATER_LEVEL in coordinator.available_sensors:
         entities.append(FloodStageSensor(coordinator))
+    if any(key in SENSOR_TYPES for key in coordinator.available_sensors):
+        entities += [LastReadingSensor(coordinator), DataAgeSensor(coordinator)]
     async_add_entities(entities)
 
 
@@ -152,3 +172,39 @@ class FloodStageSensor(WaterlevelEntity, SensorEntity):
         }
         attrs.update(self._location_attributes())
         return attrs
+
+
+class _FreshnessSensor(WaterlevelEntity, SensorEntity):
+    """Reports on the station's last reading; usable during an outage, when it matters most."""
+
+    def __init__(self, coordinator: WaterlevelCoordinator, description: SensorEntityDescription):
+        super().__init__(coordinator, description.key)
+        self.entity_description = description
+
+    @property
+    def available(self) -> bool:
+        return self.coordinator.last_reading_time is not None
+
+
+class LastReadingSensor(_FreshnessSensor):
+    """When the station last sent a reading."""
+
+    def __init__(self, coordinator: WaterlevelCoordinator) -> None:
+        super().__init__(coordinator, LAST_READING_DESCRIPTION)
+
+    @property
+    def native_value(self) -> datetime | None:
+        return self.coordinator.last_reading_time
+
+
+class DataAgeSensor(_FreshnessSensor):
+    """Minutes since the station last sent a reading, as of the last update."""
+
+    def __init__(self, coordinator: WaterlevelCoordinator) -> None:
+        super().__init__(coordinator, DATA_AGE_DESCRIPTION)
+
+    @property
+    def native_value(self) -> int | None:
+        if (last := self.coordinator.last_reading_time) is None:
+            return None
+        return int((dt_util.utcnow() - last).total_seconds() // 60)

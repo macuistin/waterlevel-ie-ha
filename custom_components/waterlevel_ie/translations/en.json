@@ -100,11 +100,25 @@
             "name": "Serious level"
           }
         }
+      },
+      "last_reading": {
+        "name": "Last Reading"
+      },
+      "data_age": {
+        "name": "Data Age"
       }
     },
     "binary_sensor": {
       "flood_alert": {
         "name": "Flood Alert"
+      },
+      "data_stale": {
+        "name": "Data Stale",
+        "state_attributes": {
+          "last_reading": {
+            "name": "Last reading"
+          }
+        }
       }
     },
     "number": {
@@ -121,7 +135,7 @@
   },
   "exceptions": {
     "update_failed": {
-      "message": "Could not read any data for station {station} from waterlevel.ie: {error}"
+      "message": "Could not read any recent data for station {station} from waterlevel.ie: {error}"
     }
   }
 }

@@ -54,6 +54,8 @@ Each gauge station becomes a **device** in Home Assistant with all its sensors, 
 | Daily Min Water Level | m | Rolling daily minimum |
 | Daily Max Water Level | m | Rolling daily maximum |
 | Flood Stage | — | Current flood stage: `normal`, `watch`, `alert`, or `serious` |
+| Last Reading | — | Time of the station's newest reading from any sensor |
+| Data Age | min | Minutes since that reading. Diagnostic |
 
 Not all sensors are present at every station. The integration probes the API on setup and only creates entities for sensors that actually return data. To turn on a disabled sensor, open it from the device page and enable it in its settings.
 
@@ -64,6 +66,7 @@ Live sensors carry these attributes: `last_reported` (the time of the reading), 
 | Entity | Description |
 |---|---|
 | Flood Alert | `On` when flood stage is watch, alert, or serious. Use this to trigger automations or notifications |
+| Data Stale | `On` when the station has sent nothing for 3 hours. Diagnostic; stays available during an outage so you can alert on it |
 
 ### Number Entities (Flood Thresholds)
 
@@ -138,7 +141,7 @@ Every 15 minutes, the integration reads OPW's latest-readings file, which holds 
 
 The flood stage and Flood Alert are worked out in Home Assistant from the latest Water Level and your thresholds; changing a threshold updates them straight away without a download.
 
-If no sensor on a station can be read, its entities become **unavailable** until the next successful update, and the integration logs the failure once and logs again when it recovers. If only the water level is missing, Flood Stage and Flood Alert show unknown rather than "normal".
+If waterlevel.ie can't be reached or a gauge stops reporting, the sensors keep their last reading (its `last_reported` attribute and Data Age show how old it is). Once the station has sent nothing for 3 hours, Data Stale turns on and the other entities become **unavailable** until a new reading arrives; Last Reading, Data Age and Data Stale stay available. The integration logs the outage once and logs again when it recovers. If only the water level is missing, Flood Stage and Flood Alert show unknown rather than "normal".
 
 ---
 
@@ -190,13 +193,12 @@ automation:
   - alias: Gauge offline
     triggers:
       - trigger: state
-        entity_id: sensor.graiguenamanagh_water_level
-        to: unavailable
-        for: "01:00:00"
+        entity_id: binary_sensor.graiguenamanagh_data_stale
+        to: "on"
     actions:
       - action: notify.notify
         data:
-          message: The Graiguenamanagh gauge has not reported for an hour.
+          message: The Graiguenamanagh gauge has not reported for 3 hours.
 ```
 
 ---
@@ -214,7 +216,7 @@ automation:
 
 ## Troubleshooting
 
-**Entities are unavailable.** waterlevel.ie could not be reached, or the station returned no data. Check [the station's page](https://waterlevel.ie/hydro-data/) in a browser. The entities come back on their own at the next successful update.
+**Entities are unavailable.** The station has sent no reading for 3 hours, or waterlevel.ie can't be reached. Data Stale and Data Age show how long it has been. Check [the station's page](https://waterlevel.ie/hydro-data/) in a browser. The entities come back on their own at the next successful update.
 
 **"Could not load the river list".** waterlevel.ie's river pages didn't load. Try again later, or choose **Enter a station number** instead.
 

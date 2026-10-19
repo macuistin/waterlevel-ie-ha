@@ -35,6 +35,9 @@ LATEST_FEED_TTL = timedelta(minutes=15)
 SUMMARY_TTL = timedelta(hours=1)
 # Trend threshold: ±this many metres vs yesterday mean = rising/falling
 TREND_THRESHOLD = 0.02
+# A station counts as stale (likely offline) after this long without a reading.
+# Until then an outage keeps the last good readings; after it, entities go unavailable.
+STALE_AFTER = timedelta(hours=3)
 DATA_LATEST = f"{DOMAIN}_latest"
 
 type WaterlevelConfigEntry = ConfigEntry[WaterlevelCoordinator]
@@ -97,6 +100,11 @@ class WaterlevelCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         }
         # Extra per-sensor metadata (e.g. last_reported, week_min/max, trend)
         self.sensor_attrs: dict[str, dict] = {}
+        # Last good reading per sensor, and the last good week of water levels,
+        # kept across updates so a short outage doesn't blank the sensors
+        self._readings: dict[str, Reading] = {}
+        self._week: dict[str, list[Reading]] = {}
+        self.stale_after = STALE_AFTER
         # Daily summaries by source sensor, refreshed every SUMMARY_TTL
         self._summaries: dict[str, dict] = {}
         self._summaries_fetched: datetime | None = None
@@ -121,6 +129,17 @@ class WaterlevelCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         """
         self._thresholds[key] = value
         self.async_update_listeners()
+
+    @property
+    def last_reading_time(self) -> datetime | None:
+        """Time of the newest reading from any of the station's live sensors."""
+        times = [r.time for k, r in self._readings.items() if k in SENSOR_TYPES]
+        return max(times, default=None)
+
+    def is_stale(self) -> bool:
+        """True when no live sensor has a reading newer than stale_after."""
+        last = self.last_reading_time
+        return last is None or dt_util.utcnow() - last > self.stale_after
 
     def flood_stage(self) -> str | None:
         """Return the flood stage for the latest water level, or None when it is unknown."""
@@ -150,12 +169,13 @@ class WaterlevelCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         summary_keys = [k for k in self.available_sensors if k in SUMMARY_SENSOR_TYPES]
 
         latest = await self._latest.get(self.station)
-        week = await self._fetch_week(WATER_LEVEL) if WATER_LEVEL in live_keys else []
+        if WATER_LEVEL in live_keys and (week := await self._fetch_week(WATER_LEVEL)):
+            self._week[WATER_LEVEL] = week
         await self._refresh_summaries(summary_keys)
 
         for key in live_keys:
             reading = latest.get(key)
-            if key == WATER_LEVEL and week:
+            if key == WATER_LEVEL and (week := self._week.get(WATER_LEVEL)):
                 # The week CSV has the history the trend and week stats need;
                 # use whichever of it and the feed is newer for the current value
                 if reading is None or week[-1].time > reading.time:
@@ -166,19 +186,19 @@ class WaterlevelCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 )
             if reading is None:
                 reading = await self._fetch_last_reading(key)
-            data[key] = reading.value if reading else None
-            if reading:
-                self.sensor_attrs.setdefault(key, {})["last_reported"] = reading.time.isoformat()
+            data[key] = self._keep_reading(key, reading)
 
-        if live_keys and all(data[key] is None for key in live_keys):
-            # Nothing came back: mark the entities unavailable rather than unknown.
+        if live_keys and self.is_stale():
+            # Nothing usable: mark the entities unavailable rather than unknown, or
+            # rather than showing readings older than stale_after as current.
             # The coordinator logs this once, and again when the station recovers.
             raise UpdateFailed(
                 translation_domain=DOMAIN,
                 translation_key="update_failed",
                 translation_placeholders={
                     "station": self.station,
-                    "error": "no sensor returned a reading",
+                    "error": "no reading newer than "
+                    f"{self.stale_after.total_seconds() / 3600:g} hours",
                 },
             )
 
@@ -201,6 +221,22 @@ class WaterlevelCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 self.sensor_attrs.setdefault(WATER_LEVEL, {})["trend"] = trend
 
         return data
+
+    def _keep_reading(self, key: str, reading: Reading | None) -> float | None:
+        """Record a sensor's reading and return its value.
+
+        Keeps the last good reading through outages (its timestamp shows its age),
+        and never lets an older reading replace a newer one.
+        """
+        if (previous := self._readings.get(key)) and (
+            reading is None or previous.time > reading.time
+        ):
+            reading = previous
+        if reading is None:
+            return None
+        self._readings[key] = reading
+        self.sensor_attrs.setdefault(key, {})["last_reported"] = reading.time.isoformat()
+        return reading.value
 
     async def _fetch_week(self, sensor: str) -> list[Reading]:
         """Week of readings for a sensor, or [] if it can't be fetched."""

@@ -39,8 +39,10 @@ doesn't meet.
 - Use `entry.runtime_data`, never `hass.data[DOMAIN]`.
 - Use `async_get_clientsession(hass)`; never open an `aiohttp.ClientSession`. Requests go through `WaterlevelApi`, which raises `WaterlevelError` (or `StationNotFound` for a 404).
 - Don't poll waterlevel.ie more often than every 15 minutes (their API terms).
-- When every live fetch fails, the coordinator raises `UpdateFailed` so entities go
-  unavailable. Per-sensor failures log at debug, so an outage logs once.
+- The coordinator keeps each sensor's last good reading through an outage and raises
+  `UpdateFailed` (entities unavailable) only once the newest reading is older than
+  `stale_after`. The freshness entities (Last Reading, Data Age, Data Stale) stay
+  available. Per-sensor failures log at debug, so an outage logs once.
 - The minimum Home Assistant version is in `hacs.json`, and `.github/workflows/tests.yml`
   tests it. Change both together (a test checks they match).
 - Keep the version in `manifest.json` and `pyproject.toml` the same (a test checks).

@@ -61,7 +61,7 @@ async def test_falls_back_to_day_csv_when_week_fails(
     hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
 ) -> None:
     aioclient_mock.get(WEEK, exc=aiohttp.ClientError("down"))
-    aioclient_mock.get(DAY, text="datetime,value\n2026-10-19T09:00:00Z,0.85\n,\n")
+    aioclient_mock.get(DAY, text="datetime,value\n2026-10-19T18:00:00Z,0.85\n,\n")
     aioclient_mock.get(SUMMARY, exc=aiohttp.ClientError("down"))
     aioclient_mock.get(GEOJSON_URL, exc=aiohttp.ClientError("down"))
     aioclient_mock.get(LATEST_GEOJSON_URL, json=NO_FEED)
@@ -71,7 +71,7 @@ async def test_falls_back_to_day_csv_when_week_fails(
     assert data["0001"] == 0.85
     assert data["0001_daily_min"] is None
     attrs = coordinator.sensor_attrs["0001"]
-    assert attrs["last_reported"] == "2026-10-19T09:00:00+00:00"
+    assert attrs["last_reported"] == "2026-10-19T18:00:00+00:00"
     assert "week_min" not in attrs
     assert "trend" not in attrs
 
