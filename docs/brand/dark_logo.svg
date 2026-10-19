@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 256" width="1200" height="256">
+  <!-- Water Level IE logo (dark theme): the icon with the wordmark. -->
+  <g transform="scale(0.5)">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1F8FCB"/>
+      <stop offset="1" stop-color="#0B3C5D"/>
+    </linearGradient>
+    <linearGradient id="water" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#5FD0F5"/>
+      <stop offset="1" stop-color="#1A9BD7"/>
+    </linearGradient>
+    <clipPath id="tile">
+      <rect x="0" y="0" width="512" height="512" rx="112"/>
+    </clipPath>
+  </defs>
+  <rect x="0" y="0" width="512" height="512" rx="112" fill="url(#sky)"/>
+  <g clip-path="url(#tile)">
+    <!-- Gauge staff with alternating tick marks -->
+    <rect x="276" y="76" width="84" height="420" rx="14" fill="#FFFFFF"/>
+    <g fill="#0B3C5D">
+      <rect x="276" y="108" width="50" height="14"/>
+      <rect x="276" y="148" width="30" height="14"/>
+      <rect x="276" y="188" width="50" height="14"/>
+      <rect x="276" y="228" width="30" height="14"/>
+      <rect x="276" y="268" width="50" height="14"/>
+      <rect x="276" y="308" width="30" height="14"/>
+      <rect x="276" y="348" width="50" height="14"/>
+    </g>
+    <!-- Water: a light front wave over a deeper back wave -->
+    <path d="M0 300 C 60 270, 120 270, 180 300 S 300 330, 360 300 S 470 270, 512 300 L 512 512 L 0 512 Z" fill="#0E6FA8" opacity="0.85"/>
+    <path d="M0 330 C 64 304, 128 304, 192 330 S 320 356, 384 330 S 480 304, 512 322 L 512 512 L 0 512 Z" fill="url(#water)"/>
+    <path d="M0 330 C 64 304, 128 304, 192 330 S 320 356, 384 330 S 480 304, 512 322" fill="none" stroke="#FFFFFF" stroke-width="12" stroke-linecap="round"/>
+    <!-- Rising arrow -->
+    <path d="M150 236 L150 132" stroke="#FFFFFF" stroke-width="26" stroke-linecap="round"/>
+    <path d="M104 172 L150 124 L196 172" fill="none" stroke="#FFFFFF" stroke-width="26" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+  </g>
+  <text x="292" y="168" font-family="Inter, sans-serif" font-weight="700" font-size="124" letter-spacing="-2" fill="#FFFFFF">Water Level <tspan fill="#7FD6F7">IE</tspan></text>
+</svg>

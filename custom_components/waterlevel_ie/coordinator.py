@@ -1,9 +1,11 @@
 """Data coordinator for the Waterlevel.ie integration."""
+
 from __future__ import annotations
 
 import asyncio
-import logging
 from datetime import timedelta
+import logging
+from typing import Any
 
 import aiohttp
 from homeassistant.config_entries import ConfigEntry
@@ -12,15 +14,26 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .const import (
-    DOMAIN, BASE_URL, SUMMARY_URL, GEOJSON_URL, SUMMARY_SENSOR_TYPES,
-    CONF_STATION, CONF_STATION_NAME, CONF_AVAILABLE_SENSORS,
-    CONF_LATITUDE, CONF_LONGITUDE, THRESHOLD_ENTITIES,
+    BASE_URL,
+    CONF_AVAILABLE_SENSORS,
+    CONF_LATITUDE,
+    CONF_LONGITUDE,
+    CONF_STATION,
+    CONF_STATION_NAME,
+    DOMAIN,
+    GEOJSON_URL,
+    SUMMARY_SENSOR_TYPES,
+    SUMMARY_URL,
+    THRESHOLD_ENTITIES,
+    WATER_LEVEL,
 )
 
 _LOGGER = logging.getLogger(__name__)
 UPDATE_INTERVAL = timedelta(seconds=900)
 # Trend threshold: ±this many metres vs yesterday mean = rising/falling
 TREND_THRESHOLD = 0.02
+
+type WaterlevelConfigEntry = ConfigEntry[WaterlevelCoordinator]
 
 
 async def fetch_station_coords(
@@ -43,17 +56,18 @@ async def fetch_station_coords(
     return None
 
 
-class WaterlevelCoordinator(DataUpdateCoordinator):
+class WaterlevelCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     """Coordinator that fetches data for all sensors on one station."""
 
-    def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
-        self._entry = entry
+    config_entry: WaterlevelConfigEntry
+
+    def __init__(self, hass: HomeAssistant, entry: WaterlevelConfigEntry) -> None:
         self.station: str = entry.data[CONF_STATION]
         self.station_name: str = entry.data[CONF_STATION_NAME]
         self.available_sensors: list[str] = entry.data.get(CONF_AVAILABLE_SENSORS, [])
         self.latitude: float | None = entry.data.get(CONF_LATITUDE)
         self.longitude: float | None = entry.data.get(CONF_LONGITUDE)
-        # Flood threshold values — seeded from THRESHOLD_ENTITIES defaults, overridden by number entities
+        # Flood thresholds: THRESHOLD_ENTITIES defaults, overridden by the number entities
         self._thresholds: dict[str, float | None] = {
             key: cfg["default"] for key, cfg in THRESHOLD_ENTITIES.items()
         }
@@ -62,7 +76,9 @@ class WaterlevelCoordinator(DataUpdateCoordinator):
         # Only attempt the GeoJSON coordinate fetch once per session
         self._coord_fetch_attempted: bool = False
         super().__init__(
-            hass, _LOGGER,
+            hass,
+            _LOGGER,
+            config_entry=entry,
             name=f"{DOMAIN}_{self.station}",
             update_interval=UPDATE_INTERVAL,
         )
@@ -72,11 +88,28 @@ class WaterlevelCoordinator(DataUpdateCoordinator):
         return self._thresholds.get(key)
 
     def set_threshold(self, key: str, value: float | None) -> None:
-        """Store a flood threshold value from the number entity."""
-        self._thresholds[key] = value
+        """Store a flood threshold from the number entity and refresh the flood entities.
 
-    async def _async_update_data(self) -> dict:
-        data: dict[str, float | None] = {}
+        The stage is worked out from the reading already held, so this makes no request.
+        """
+        self._thresholds[key] = value
+        self.async_update_listeners()
+
+    def flood_stage(self) -> str | None:
+        """Return the flood stage for the latest water level, or None when it is unknown."""
+        level = (self.data or {}).get(WATER_LEVEL)
+        if level is None:
+            return None
+        stage = "normal"
+        # Thresholds in ascending order of severity: the highest one reached wins
+        for key in THRESHOLD_ENTITIES:
+            threshold = self._thresholds.get(key)
+            if threshold is not None and level >= threshold:
+                stage = key
+        return stage
+
+    async def _async_update_data(self) -> dict[str, Any]:
+        data: dict[str, Any] = {}
         # Reset per-update metadata — prevents stale attrs surviving a failed fetch
         self.sensor_attrs = {}
 
@@ -89,9 +122,9 @@ class WaterlevelCoordinator(DataUpdateCoordinator):
         summary_keys = [k for k in self.available_sensors if k in SUMMARY_SENSOR_TYPES]
 
         # Fetch which source sensors need a summary CSV (deduplicated, order-stable)
-        summary_sources = list(dict.fromkeys(
-            SUMMARY_SENSOR_TYPES[k]["summary_source"] for k in summary_keys
-        ))
+        summary_sources = list(
+            dict.fromkeys(SUMMARY_SENSOR_TYPES[k]["summary_source"] for k in summary_keys)
+        )
 
         session = async_get_clientsession(self.hass)
         # Parallel fetch: live CSVs + one summary CSV per source sensor
@@ -99,15 +132,25 @@ class WaterlevelCoordinator(DataUpdateCoordinator):
         summary_coros = [self._fetch_summary(session, src) for src in summary_sources]
 
         all_results = await asyncio.gather(
-            *live_coros, *summary_coros,
+            *live_coros,
+            *summary_coros,
             return_exceptions=True,
         )
 
-        # Unpack live results
-        # _fetch_sensor now returns (value, last_reported, week_min, week_max)
-        for key, result in zip(live_keys, all_results[: len(live_keys)]):
-            if isinstance(result, Exception):
-                _LOGGER.warning("Failed to fetch %s for station %s: %s", key, self.station, result)
+        live_results = all_results[: len(live_keys)]
+        if live_results and all(isinstance(r, BaseException) for r in live_results):
+            # Nothing came back: mark the entities unavailable rather than unknown.
+            # The coordinator logs this once, and again when the station recovers.
+            raise UpdateFailed(
+                translation_domain=DOMAIN,
+                translation_key="update_failed",
+                translation_placeholders={"station": self.station, "error": str(live_results[0])},
+            )
+
+        # Unpack live results: (value, last_reported, week_min, week_max) each
+        for key, result in zip(live_keys, live_results, strict=True):
+            if isinstance(result, BaseException):
+                _LOGGER.debug("Failed to fetch %s for station %s: %s", key, self.station, result)
                 data[key] = None
             else:
                 value, last_reported, week_min, week_max = result
@@ -124,9 +167,11 @@ class WaterlevelCoordinator(DataUpdateCoordinator):
 
         # Unpack summary results (one dict per source sensor)
         summary_by_source: dict[str, dict] = {}
-        for src, result in zip(summary_sources, all_results[len(live_keys):]):
-            if isinstance(result, Exception):
-                _LOGGER.warning("Failed to fetch summary for station %s / %s: %s", self.station, src, result)
+        for src, result in zip(summary_sources, all_results[len(live_keys) :], strict=True):
+            if isinstance(result, BaseException):
+                _LOGGER.debug(
+                    "Failed to fetch summary for station %s / %s: %s", self.station, src, result
+                )
                 summary_by_source[src] = {}
             else:
                 summary_by_source[src] = result or {}
@@ -150,24 +195,6 @@ class WaterlevelCoordinator(DataUpdateCoordinator):
                 else:
                     trend = "steady"
                 self.sensor_attrs.setdefault("0001", {})["trend"] = trend
-
-        # Compute flood stage from thresholds set via number entities
-        level = data.get("0001")
-        watch = self._thresholds.get("watch")
-        alert = self._thresholds.get("alert")
-        serious = self._thresholds.get("serious")
-        if level is not None and any(t is not None for t in (watch, alert, serious)):
-            if serious is not None and level >= serious:
-                stage = "serious"
-            elif alert is not None and level >= alert:
-                stage = "alert"
-            elif watch is not None and level >= watch:
-                stage = "watch"
-            else:
-                stage = "normal"
-            data["flood_stage"] = stage
-        else:
-            data["flood_stage"] = "normal"
 
         return data
 
@@ -230,7 +257,9 @@ class WaterlevelCoordinator(DataUpdateCoordinator):
                             if period == "week":
                                 _LOGGER.debug(
                                     "Station %s sensor %s: no data today, last known from week: %s",
-                                    self.station, sensor_key, last_reported,
+                                    self.station,
+                                    sensor_key,
+                                    last_reported,
                                 )
                         break
                     except ValueError:
@@ -240,7 +269,9 @@ class WaterlevelCoordinator(DataUpdateCoordinator):
             if value is not None and period == "day" and sensor_key == "0001":
                 week_url = BASE_URL.format(period="week", station=self.station, sensor=sensor_key)
                 try:
-                    async with session.get(week_url, timeout=aiohttp.ClientTimeout(total=30)) as resp:
+                    async with session.get(
+                        week_url, timeout=aiohttp.ClientTimeout(total=30)
+                    ) as resp:
                         if resp.status == 200:
                             wtext = await resp.text()
                             week_vals = []
@@ -272,7 +303,7 @@ class WaterlevelCoordinator(DataUpdateCoordinator):
                 resp.raise_for_status()
                 text = await resp.text()
         except aiohttp.ClientError as err:
-            _LOGGER.warning("Failed to fetch summary %s: %s", url, err)
+            _LOGGER.debug("Failed to fetch summary %s: %s", url, err)
             return {}
 
         # CSV columns: Datetime,Value,Min,Mean,Max
