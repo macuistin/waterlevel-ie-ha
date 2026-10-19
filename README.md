@@ -50,7 +50,7 @@ Each gauge station becomes a **device** in Home Assistant with all its sensors, 
 | Water Level | m | Live staff gauge level (relative to station datum), updated every 15 min |
 | Backup Water Level | m | Reading from the station's second level sensor, where it has one |
 | Water Level OD | m | Ordnance datum level — absolute height above Malin Head or Poolbeg sea level |
-| Temperature | °C | Sensor housing temperature. May read high in warm weather; not true water temperature |
+| Temperature | °C | Sensor housing temperature. May read high in warm weather; not true water temperature. Disabled by default |
 | Battery Voltage | V | Gauge battery level — useful for alerting on low charge. Diagnostic, disabled by default |
 | Signal Strength | dBm | Gauge's mobile signal. Diagnostic, disabled by default |
 | Daily Mean Water Level | m | Rolling daily mean from the OPW summary CSV |
@@ -293,7 +293,7 @@ automation:
 
 **Flood Stage is wrong for my river.** The thresholds are set per station on the device page. Compare them with the `suggested_value` attribute, and set what matches your stretch of river.
 
-**Battery Voltage or Signal Strength is missing.** They're disabled by default. Enable them from the device page.
+**Temperature, Battery Voltage or Signal Strength is missing.** They're disabled by default. Enable them from the device page.
 
 **Something else.** Download diagnostics from **Settings → Devices & Services → Water Level IE → ⋮ → Download diagnostics**, turn on debug logging from the same menu, reproduce the problem, and attach both to an [issue](https://github.com/macuistin/waterlevel-ie-ha/issues).
 

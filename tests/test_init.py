@@ -5,6 +5,7 @@ from __future__ import annotations
 import aiohttp
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant
+import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 from pytest_homeassistant_custom_component.test_util.aiohttp import AiohttpClientMocker
 
@@ -120,6 +121,7 @@ async def test_setup_and_coords_backfill(
     assert await hass.config_entries.async_unload(entry.entry_id)
 
 
+@pytest.mark.usefixtures("entity_registry_enabled_by_default")
 async def test_other_sensors_come_from_latest_feed(
     hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
 ) -> None:
@@ -150,6 +152,7 @@ async def test_latest_feed_fetched_once_for_all_stations(
     assert _calls(aioclient_mock, LATEST_GEOJSON_URL) == 1
 
 
+@pytest.mark.usefixtures("entity_registry_enabled_by_default")
 async def test_falls_back_to_csv_when_feed_fails(
     hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
 ) -> None:

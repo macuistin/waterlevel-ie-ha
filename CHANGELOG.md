@@ -2,6 +2,11 @@
 
 What each release changed, newest first.
 
+## Unreleased
+
+**Changed**
+- Temperature is disabled by default on newly added stations, because it reads the gauge housing rather than the water. Enable it from the device page if you want it. Stations you already have keep it.
+
 ## v1.2.0
 
 The first tagged release. It reads one shared OPW feed instead of a file per sensor, keeps readings through short outages, suggests flood thresholds from each station's own history, and adds discharge, a level trend, station options, a "near me" search and a flood warning blueprint. Home Assistant 2025.2.0 or newer is required. After upgrading, compare your flood thresholds with their new `suggested_value` attribute, because existing stations keep the thresholds they had.

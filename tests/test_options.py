@@ -8,6 +8,7 @@ from unittest.mock import patch
 import aiohttp
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
+import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 from pytest_homeassistant_custom_component.test_util.aiohttp import AiohttpClientMocker
 
@@ -72,6 +73,7 @@ async def test_change_interval_and_stale_limit(
     assert defaults["stale_hours"] == 6
 
 
+@pytest.mark.usefixtures("entity_registry_enabled_by_default")
 async def test_redetect_adds_new_sensors(
     hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
 ) -> None:

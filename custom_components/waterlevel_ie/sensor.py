@@ -71,6 +71,8 @@ SENSOR_DESCRIPTIONS: dict[str, WaterlevelSensorEntityDescription] = {
             native_unit_of_measurement=UnitOfTemperature.CELSIUS,
             device_class=SensorDeviceClass.TEMPERATURE,
             state_class=SensorStateClass.MEASUREMENT,
+            # The gauge housing's temperature, not the water's
+            entity_registry_enabled_default=False,
         ),
         WaterlevelSensorEntityDescription(
             key="0003",
