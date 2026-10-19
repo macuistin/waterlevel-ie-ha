@@ -9,6 +9,7 @@ from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import STATE_UNAVAILABLE, STATE_UNKNOWN, EntityCategory
 from homeassistant.core import HomeAssistant, State
 from homeassistant.helpers import entity_registry as er
+import pytest
 from pytest_homeassistant_custom_component.common import (
     MockConfigEntry,
     mock_restore_cache_with_extra_data,
@@ -104,7 +105,6 @@ async def test_entities_and_names(
     # so new installs get the same entity ids as before
     for entity_id in (
         "sensor.graiguenamanagh_water_level",
-        "sensor.graiguenamanagh_temperature",
         "sensor.graiguenamanagh_daily_mean_water_level",
         "sensor.graiguenamanagh_flood_stage",
         "binary_sensor.graiguenamanagh_flood_alert",
@@ -134,6 +134,11 @@ async def test_entities_and_names(
         reg = entity_registry.async_get(entity_id)
         assert reg.entity_category is EntityCategory.DIAGNOSTIC
         assert reg.disabled_by is er.RegistryEntryDisabler.INTEGRATION
+
+    # Temperature is the gauge housing's, so it's off by default but not diagnostic
+    temperature = entity_registry.async_get("sensor.graiguenamanagh_temperature")
+    assert temperature.entity_category is None
+    assert temperature.disabled_by is er.RegistryEntryDisabler.INTEGRATION
 
     watch = entity_registry.async_get("number.graiguenamanagh_watch_level")
     assert watch.entity_category is EntityCategory.CONFIG
@@ -212,6 +217,7 @@ async def test_long_outage_makes_entities_unavailable(
     assert hass.states.get("binary_sensor.graiguenamanagh_data_stale").state == "off"
 
 
+@pytest.mark.usefixtures("entity_registry_enabled_by_default")
 async def test_missing_level_makes_flood_stage_unknown(
     hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
 ) -> None:
@@ -276,6 +282,7 @@ async def test_unload(hass: HomeAssistant, aioclient_mock: AiohttpClientMocker) 
     assert entry.state is ConfigEntryState.NOT_LOADED
 
 
+@pytest.mark.usefixtures("entity_registry_enabled_by_default")
 async def test_station_without_water_level(
     hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
 ) -> None:

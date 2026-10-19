@@ -8,6 +8,7 @@ import aiohttp
 from freezegun.api import FrozenDateTimeFactory
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant
+import pytest
 from pytest_homeassistant_custom_component.test_util.aiohttp import AiohttpClientMocker
 
 from custom_components.waterlevel_ie.const import LATEST_GEOJSON_URL
@@ -15,6 +16,7 @@ from custom_components.waterlevel_ie.const import LATEST_GEOJSON_URL
 from .test_init import LATEST, _entry, _feature, _mock_station
 
 
+@pytest.mark.usefixtures("entity_registry_enabled_by_default")
 async def test_keeps_last_reading_and_flags_stale(
     hass: HomeAssistant, aioclient_mock: AiohttpClientMocker, freezer: FrozenDateTimeFactory
 ) -> None:

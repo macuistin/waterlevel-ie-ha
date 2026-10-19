@@ -67,7 +67,7 @@ rules:
     comment: Each config entry is one station, so there is exactly one device per entry
   entity-category: done        # battery and signal are diagnostic, thresholds are config
   entity-device-class: done    # distance, temperature, voltage, signal strength, enum, safety
-  entity-disabled-by-default: done  # battery voltage and signal strength
+  entity-disabled-by-default: done  # temperature, battery voltage and signal strength
   entity-translations: done    # every entity has a translation_key and a name in strings.json
   exception-translations: done # the update failure uses translation_key update_failed
   icon-translations: done      # icons.json, with state icons for the flood stage and alert
