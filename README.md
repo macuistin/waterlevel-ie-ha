@@ -1,4 +1,16 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="custom_components/waterlevel_ie/brand/dark_logo.png">
+    <img src="custom_components/waterlevel_ie/brand/logo.png" alt="Waterlevel.ie" height="96">
+  </picture>
+</p>
+
 # Waterlevel.ie for Home Assistant
+
+[![HACS Custom](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://hacs.xyz/docs/faq/custom_repositories/)
+[![GitHub release](https://img.shields.io/github/v/release/macuistin/waterlevel-ie-ha)](https://github.com/macuistin/waterlevel-ie-ha/releases)
+[![Tests](https://github.com/macuistin/waterlevel-ie-ha/actions/workflows/tests.yml/badge.svg)](https://github.com/macuistin/waterlevel-ie-ha/actions/workflows/tests.yml)
+[![License](https://img.shields.io/github/license/macuistin/waterlevel-ie-ha)](LICENSE)
 
 A custom Home Assistant integration that pulls real-time river gauge data from [waterlevel.ie](https://waterlevel.ie), operated by the Irish Office of Public Works (OPW).
 
