@@ -1,11 +1,11 @@
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="custom_components/waterlevel_ie/brand/dark_logo.png">
-    <img src="custom_components/waterlevel_ie/brand/logo.png" alt="Waterlevel.ie" height="96">
+    <img src="custom_components/waterlevel_ie/brand/logo.png" alt="Water Level IE" height="96">
   </picture>
 </p>
 
-# Waterlevel.ie for Home Assistant
+# Water Level IE for Home Assistant
 
 [![HACS Custom](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://hacs.xyz/docs/faq/custom_repositories/)
 [![GitHub release](https://img.shields.io/github/v/release/macuistin/waterlevel-ie-ha)](https://github.com/macuistin/waterlevel-ie-ha/releases)
@@ -13,6 +13,8 @@
 [![License](https://img.shields.io/github/license/macuistin/waterlevel-ie-ha)](LICENSE)
 
 A custom Home Assistant integration that pulls real-time river gauge data from [waterlevel.ie](https://waterlevel.ie), operated by the Irish Office of Public Works (OPW).
+
+> **Unofficial.** This is a community-built integration. It is not made, endorsed or supported by waterlevel.ie or the Office of Public Works; it only reads the open data they publish. Report problems with the integration on this repository's [issue tracker](https://github.com/macuistin/waterlevel-ie-ha/issues), not to the OPW.
 
 Each gauge station becomes a **device** in Home Assistant with all its sensors, flood alerts, and threshold controls grouped underneath.
 
@@ -77,7 +79,7 @@ All entities expose `latitude` and `longitude` as state attributes. Stations app
 1. In Home Assistant, open **HACS → Integrations**
 2. Click the three-dot menu → **Custom repositories**
 3. Add `https://github.com/macuistin/waterlevel-ie-ha` as an **Integration**
-4. Search for "Waterlevel.ie" and install it
+4. Search for "Water Level IE" and install it
 5. Restart Home Assistant
 
 ### Manual
@@ -93,7 +95,7 @@ All entities expose `latitude` and `longitude` as state attributes. Stations app
 After installation and restart:
 
 1. Go to **Settings → Devices & Services → Add Integration**
-2. Search for **Waterlevel.ie**
+2. Search for **Water Level IE**
 3. Choose how to find the station:
    - **Browse by river**: pick a river, then a station on it. Stations you've already added are left out of the list.
    - **Enter a station number**: type the number (e.g. `14029`) or paste the station's page address from waterlevel.ie (e.g. `https://waterlevel.ie/0000014029/`)
