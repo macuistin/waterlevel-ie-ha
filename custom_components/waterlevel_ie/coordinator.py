@@ -18,8 +18,12 @@ from .const import (
     CONF_AVAILABLE_SENSORS,
     CONF_LATITUDE,
     CONF_LONGITUDE,
+    CONF_SCAN_INTERVAL,
+    CONF_STALE_HOURS,
     CONF_STATION,
     CONF_STATION_NAME,
+    DEFAULT_SCAN_INTERVAL,
+    DEFAULT_STALE_HOURS,
     DOMAIN,
     SENSOR_TYPES,
     SUMMARY_SENSOR_TYPES,
@@ -28,16 +32,12 @@ from .const import (
 )
 
 _LOGGER = logging.getLogger(__name__)
-UPDATE_INTERVAL = timedelta(seconds=900)
 # OPW asks for bulk files to be fetched no more than once every 15 minutes
 LATEST_FEED_TTL = timedelta(minutes=15)
 # Daily summaries only change once a day
 SUMMARY_TTL = timedelta(hours=1)
 # Trend threshold: ±this many metres vs yesterday mean = rising/falling
 TREND_THRESHOLD = 0.02
-# A station counts as stale (likely offline) after this long without a reading.
-# Until then an outage keeps the last good readings; after it, entities go unavailable.
-STALE_AFTER = timedelta(hours=3)
 DATA_LATEST = f"{DOMAIN}_latest"
 
 type WaterlevelConfigEntry = ConfigEntry[WaterlevelCoordinator]
@@ -104,7 +104,9 @@ class WaterlevelCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # kept across updates so a short outage doesn't blank the sensors
         self._readings: dict[str, Reading] = {}
         self._week: dict[str, list[Reading]] = {}
-        self.stale_after = STALE_AFTER
+        # A station counts as stale (likely offline) after this long without a reading.
+        # Until then an outage keeps the last good readings; after it, entities go unavailable.
+        self.stale_after = timedelta(hours=entry.options.get(CONF_STALE_HOURS, DEFAULT_STALE_HOURS))
         # Daily summaries by source sensor, refreshed every SUMMARY_TTL
         self._summaries: dict[str, dict] = {}
         self._summaries_fetched: datetime | None = None
@@ -115,7 +117,9 @@ class WaterlevelCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             _LOGGER,
             config_entry=entry,
             name=f"{DOMAIN}_{self.station}",
-            update_interval=UPDATE_INTERVAL,
+            update_interval=timedelta(
+                minutes=entry.options.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
+            ),
         )
 
     def get_threshold(self, key: str) -> float | None:

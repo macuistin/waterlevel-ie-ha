@@ -45,3 +45,11 @@ CONF_STATION_NAME = "station_name"
 CONF_AVAILABLE_SENSORS = "available_sensors"
 CONF_LATITUDE = "latitude"
 CONF_LONGITUDE = "longitude"
+
+# Options (Settings → Devices & services → Configure)
+CONF_SCAN_INTERVAL = "scan_interval"  # minutes
+CONF_STALE_HOURS = "stale_hours"
+CONF_REDETECT = "redetect_sensors"
+DEFAULT_SCAN_INTERVAL = 15
+MIN_SCAN_INTERVAL = 15  # OPW asks for no more than one fetch per 15 minutes
+DEFAULT_STALE_HOURS = 3

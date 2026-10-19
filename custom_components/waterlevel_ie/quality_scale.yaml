@@ -35,9 +35,7 @@ rules:
     status: exempt
     comment: The integration registers no actions
   config-entry-unloading: done
-  docs-configuration-parameters:
-    status: exempt
-    comment: There is no options flow
+  docs-configuration-parameters: done  # README: the options table under Configuration
   docs-installation-parameters: done  # README: the setup field table under Configuration
   entity-unavailable: done     # last readings kept up to 3 h, then UpdateFailed; flood stage is unknown with no level
   integration-owner: done      # @macuistin

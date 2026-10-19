@@ -129,7 +129,15 @@ To add more stations, repeat from step 1 — each station is a separate integrat
 | Station | A gauge on that river. Stations you've already added are left out |
 | Station number or address | The number from the station's waterlevel.ie page (`14029`, or `0000014029`), or the page's address |
 
-There are no other options; the flood thresholds are set on the device page after setup.
+The flood thresholds are set on the device page after setup. Each station also has options, under **Settings → Devices & Services → Water Level IE → Configure**:
+
+| Option | Default | What it does |
+|---|---|---|
+| Update interval | 15 min | How often the station reads new data. 15 minutes is the shortest allowed, as the OPW asks |
+| Mark data as stale after | 3 h | How long without a reading before Data Stale turns on and the other entities become unavailable |
+| Check the station for new sensors | off | Looks up the station's sensors again and adds any new ones, for example after the OPW adds a temperature probe |
+
+Saving the options reloads the station.
 
 Find station numbers and rivers at [waterlevel.ie/group/list](https://waterlevel.ie/group/list/).
 
@@ -141,7 +149,7 @@ Every 15 minutes, the integration reads OPW's latest-readings file, which holds 
 
 The flood stage and Flood Alert are worked out in Home Assistant from the latest Water Level and your thresholds; changing a threshold updates them straight away without a download.
 
-If waterlevel.ie can't be reached or a gauge stops reporting, the sensors keep their last reading (its `last_reported` attribute and Data Age show how old it is). Once the station has sent nothing for 3 hours, Data Stale turns on and the other entities become **unavailable** until a new reading arrives; Last Reading, Data Age and Data Stale stay available. The integration logs the outage once and logs again when it recovers. If only the water level is missing, Flood Stage and Flood Alert show unknown rather than "normal".
+If waterlevel.ie can't be reached or a gauge stops reporting, the sensors keep their last reading (its `last_reported` attribute and Data Age show how old it is). Once the station has sent nothing for 3 hours (an option, see Configuration), Data Stale turns on and the other entities become **unavailable** until a new reading arrives; Last Reading, Data Age and Data Stale stay available. The integration logs the outage once and logs again when it recovers. If only the water level is missing, Flood Stage and Flood Alert show unknown rather than "normal".
 
 ---
 

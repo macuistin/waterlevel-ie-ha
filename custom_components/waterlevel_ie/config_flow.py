@@ -7,8 +7,13 @@ import re
 from typing import Any
 
 from homeassistant import config_entries
+from homeassistant.core import callback
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.selector import (
+    BooleanSelector,
+    NumberSelector,
+    NumberSelectorConfig,
+    NumberSelectorMode,
     SelectSelector,
     SelectSelectorConfig,
     SelectSelectorMode,
@@ -23,10 +28,16 @@ from .const import (
     CONF_AVAILABLE_SENSORS,
     CONF_LATITUDE,
     CONF_LONGITUDE,
+    CONF_REDETECT,
+    CONF_SCAN_INTERVAL,
+    CONF_STALE_HOURS,
     CONF_STATION,
     CONF_STATION_NAME,
+    DEFAULT_SCAN_INTERVAL,
+    DEFAULT_STALE_HOURS,
     DOMAIN,
     GROUP_LIST_URL,
+    MIN_SCAN_INTERVAL,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -72,6 +83,13 @@ class WaterlevelConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Config flow: choose how to find a station, then add it."""
 
     VERSION = 1
+
+    @staticmethod
+    @callback
+    def async_get_options_flow(
+        config_entry: config_entries.ConfigEntry,
+    ) -> WaterlevelOptionsFlow:
+        return WaterlevelOptionsFlow()
 
     def __init__(self) -> None:
         self._groups: dict[str, str] = {}
@@ -210,3 +228,67 @@ class WaterlevelConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         else:
             return self.async_create_entry(title=info[CONF_STATION_NAME], data=info)
         return None
+
+
+class WaterlevelOptionsFlow(config_entries.OptionsFlow):
+    """Change how often a station updates and when it counts as stale."""
+
+    async def async_step_init(self, user_input: dict[str, Any] | None = None):
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            options = {
+                CONF_SCAN_INTERVAL: int(user_input[CONF_SCAN_INTERVAL]),
+                CONF_STALE_HOURS: int(user_input[CONF_STALE_HOURS]),
+            }
+            if user_input.get(CONF_REDETECT):
+                api = WaterlevelApi(async_get_clientsession(self.hass))
+                try:
+                    _, available = await api.detect_station(self.config_entry.data[CONF_STATION])
+                except StationNotFound:
+                    errors["base"] = "station_not_found"
+                except WaterlevelError:
+                    errors["base"] = "cannot_connect"
+                else:
+                    # Sensors and options in one update, so the station reloads once
+                    self.hass.config_entries.async_update_entry(
+                        self.config_entry,
+                        data={**self.config_entry.data, CONF_AVAILABLE_SENSORS: available},
+                        options=options,
+                    )
+            if not errors:
+                # Saving reloads the station, which picks up the settings and any new sensors
+                return self.async_create_entry(data=options)
+        options = self.config_entry.options
+        return self.async_show_form(
+            step_id="init",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(
+                        CONF_SCAN_INTERVAL,
+                        default=options.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL),
+                    ): NumberSelector(
+                        NumberSelectorConfig(
+                            min=MIN_SCAN_INTERVAL,
+                            max=180,
+                            step=5,
+                            unit_of_measurement="min",
+                            mode=NumberSelectorMode.BOX,
+                        )
+                    ),
+                    vol.Required(
+                        CONF_STALE_HOURS,
+                        default=options.get(CONF_STALE_HOURS, DEFAULT_STALE_HOURS),
+                    ): NumberSelector(
+                        NumberSelectorConfig(
+                            min=1,
+                            max=72,
+                            step=1,
+                            unit_of_measurement="h",
+                            mode=NumberSelectorMode.BOX,
+                        )
+                    ),
+                    vol.Optional(CONF_REDETECT, default=False): BooleanSelector(),
+                }
+            ),
+            errors=errors,
+        )
