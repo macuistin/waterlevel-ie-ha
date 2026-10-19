@@ -2,7 +2,7 @@
 
 What each release changed, newest first.
 
-## Unreleased
+## v1.2.1
 
 **Changed**
 - Temperature is disabled by default on newly added stations, because it reads the gauge housing rather than the water. Enable it from the device page if you want it. Stations you already have keep it.
