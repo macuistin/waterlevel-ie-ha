@@ -43,6 +43,8 @@ doesn't meet.
 - The minimum Home Assistant version is in `hacs.json`, and `.github/workflows/tests.yml`
   tests it. Change both together (a test checks they match).
 - Keep the version in `manifest.json` and `pyproject.toml` the same (a test checks).
+- Every behaviour change comes with a test. CI fails below 95% coverage, branches included
+  (`fail_under` in `pyproject.toml`); don't lower it to get a PR green.
 
 ## Commands
 
