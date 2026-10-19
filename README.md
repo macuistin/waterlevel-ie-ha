@@ -18,6 +18,9 @@ A custom Home Assistant integration that pulls real-time river gauge data from [
 
 Each gauge station becomes a **device** in Home Assistant with all its sensors, flood alerts, and threshold controls grouped underneath.
 
+> [!WARNING]
+> **This is not a flood warning service.** Readings can be late, missing or wrong, and the flood stages here come from thresholds you set (or ones suggested from past data), not from any official assessment. For flood warnings, check [floodinfo.ie](https://www.floodinfo.ie/) and [Met Éireann warnings](https://www.met.ie/warnings), and follow advice from your local authority.
+
 ## Use cases
 
 - Get a phone notification when the river near your home, farm or business passes a level you choose.
@@ -159,6 +162,55 @@ Every 15 minutes, the integration reads OPW's latest-readings file, which holds 
 The flood stage and Flood Alert are worked out in Home Assistant from the latest Water Level and your thresholds; changing a threshold updates them straight away without a download.
 
 If waterlevel.ie can't be reached or a gauge stops reporting, the sensors keep their last reading (its `last_reported` attribute and Data Age show how old it is). Once the station has sent nothing for 3 hours (an option, see Configuration), Data Stale turns on and the other entities become **unavailable** until a new reading arrives; Last Reading, Data Age and Data Stale stay available. The integration logs the outage once and logs again when it recovers. If only the water level is missing, Flood Stage and Flood Alert show unknown rather than "normal".
+
+---
+
+## Dashboard example
+
+A history graph of the water level with its three thresholds shows at a glance how close the river is to each stage. Replace `graiguenamanagh` with your station's entity names:
+
+```yaml
+type: vertical-stack
+cards:
+  - type: history-graph
+    title: Graiguenamanagh
+    hours_to_show: 72
+    entities:
+      - entity: sensor.graiguenamanagh_water_level
+        name: Level
+      - entity: number.graiguenamanagh_watch_level
+        name: Watch
+      - entity: number.graiguenamanagh_alert_level
+        name: Alert
+      - entity: number.graiguenamanagh_serious_level
+        name: Serious
+  - type: glance
+    entities:
+      - entity: sensor.graiguenamanagh_flood_stage
+        name: Stage
+      - entity: sensor.graiguenamanagh_water_level_trend
+        name: Trend
+      - entity: sensor.graiguenamanagh_last_reading
+        name: Updated
+        format: relative
+```
+
+---
+
+## Flood warning automation
+
+The included blueprint runs your actions, such as a phone notification, when a station's flood stage rises to the level you choose. It can also run them when the river is rising faster than a rate you set.
+
+[![Open your Home Assistant instance and show the blueprint import dialog with this blueprint pre-filled.](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fmacuistin%2Fwaterlevel-ie-ha%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Fwaterlevel_ie%2Friver_rising.yaml)
+
+Or import it manually from `https://github.com/macuistin/waterlevel-ie-ha/blob/main/blueprints/automation/waterlevel_ie/river_rising.yaml` under **Settings → Automations & Scenes → Blueprints → Import Blueprint**. In your actions you can use `{{ station }}`, `{{ stage }}` and `{{ reason }}`, for example:
+
+```yaml
+action: notify.mobile_app_your_phone
+data:
+  title: "{{ station }}"
+  message: "River warning: {{ reason }}"
+```
 
 ---
 
