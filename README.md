@@ -18,6 +18,13 @@ A custom Home Assistant integration that pulls real-time river gauge data from [
 
 Each gauge station becomes a **device** in Home Assistant with all its sensors, flood alerts, and threshold controls grouped underneath.
 
+## Use cases
+
+- Get a phone notification when the river near your home, farm or business passes a level you choose.
+- Check whether a river is safe to paddle, fish or walk beside before you set off.
+- Chart river levels next to rainfall from a weather integration to see how fast a catchment responds.
+- Show gauges on a map card, or watch a remote gauge's battery and signal.
+
 ---
 
 ## Features
@@ -38,15 +45,19 @@ Each gauge station becomes a **device** in Home Assistant with all its sensors, 
 | Sensor | Unit | Description |
 |---|---|---|
 | Water Level | m | Live staff gauge level (relative to station datum), updated every 15 min |
+| Backup Water Level | m | Reading from the station's second level sensor, where it has one |
 | Water Level OD | m | Ordnance datum level — absolute height above Malin Head or Poolbeg sea level |
 | Temperature | °C | Sensor housing temperature. May read high in warm weather; not true water temperature |
-| Battery Voltage | V | Gauge battery level — useful for alerting on low charge |
+| Battery Voltage | V | Gauge battery level — useful for alerting on low charge. Diagnostic, disabled by default |
+| Signal Strength | dBm | Gauge's mobile signal. Diagnostic, disabled by default |
 | Daily Mean Water Level | m | Rolling daily mean from the OPW summary CSV |
 | Daily Min Water Level | m | Rolling daily minimum |
 | Daily Max Water Level | m | Rolling daily maximum |
 | Flood Stage | — | Current flood stage: `normal`, `watch`, `alert`, or `serious` |
 
-Not all sensors are present at every station. The integration probes the API on setup and only creates entities for sensors that actually return data.
+Not all sensors are present at every station. The integration probes the API on setup and only creates entities for sensors that actually return data. To turn on a disabled sensor, open it from the device page and enable it in its settings.
+
+Live sensors carry these attributes: `last_reported` (the time of the reading), `week_min` and `week_max` (the range over the last 7 days, on Water Level), and `trend` (`rising`, `steady` or `falling` against yesterday's mean, on Water Level). Water levels can be shown in other length units from each entity's settings.
 
 ### Binary Sensor
 
@@ -69,6 +80,12 @@ These are set per-station and persist across restarts. Adjust them directly from
 ### Map Support
 
 All entities expose `latitude` and `longitude` as state attributes. Stations appear automatically on Home Assistant map cards without any extra configuration.
+
+---
+
+## Supported stations
+
+Any gauge station published on [waterlevel.ie](https://waterlevel.ie/hydro-data/), which covers the OPW's hydrometric network across Ireland (about 500 stations). Stations show the sensors listed above where the gauge has them; most have a water level, and many also report temperature, battery and signal. Stations run by other bodies (for example the EPA or local authorities) are only included where waterlevel.ie publishes them.
 
 ---
 
@@ -103,7 +120,119 @@ After installation and restart:
 
 To add more stations, repeat from step 1 — each station is a separate integration entry and device.
 
+| Setup field | What to enter |
+|---|---|
+| River | The river or catchment the gauge is on, as waterlevel.ie lists it |
+| Station | A gauge on that river. Stations you've already added are left out |
+| Station number or address | The number from the station's waterlevel.ie page (`14029`, or `0000014029`), or the page's address |
+
+There are no other options; the flood thresholds are set on the device page after setup.
+
 Find station numbers and rivers at [waterlevel.ie/group/list](https://waterlevel.ie/group/list/).
+
+---
+
+## How the data is updated
+
+Every 15 minutes, the integration downloads each live sensor's readings for today from waterlevel.ie and uses the latest one. If today has no readings yet it falls back to the last 7 days, and for Water Level it also reads the week to work out `week_min`, `week_max`. The daily mean, min and max come from the station's summary file, which waterlevel.ie updates once a day, so they describe yesterday. Coordinates come from the waterlevel.ie station map when the station is added.
+
+The flood stage and Flood Alert are worked out in Home Assistant from the latest Water Level and your thresholds; changing a threshold updates them straight away without a download.
+
+If no sensor on a station can be read, its entities become **unavailable** until the next successful update, and the integration logs the failure once and logs again when it recovers. If only the water level is missing, Flood Stage and Flood Alert show unknown rather than "normal".
+
+---
+
+## Automation examples
+
+Notify when the river reaches the alert stage:
+
+```yaml
+automation:
+  - alias: River at alert level
+    triggers:
+      - trigger: state
+        entity_id: sensor.graiguenamanagh_flood_stage
+        to: ["alert", "serious"]
+    actions:
+      - action: notify.mobile_app_my_phone
+        data:
+          title: River level
+          message: >
+            {{ state_attr(trigger.entity_id, 'friendly_name') }} is
+            {{ trigger.to_state.state }}
+            ({{ states('sensor.graiguenamanagh_water_level') }} m).
+```
+
+Notify when the river is rising quickly past the watch level:
+
+```yaml
+automation:
+  - alias: River rising above watch level
+    triggers:
+      - trigger: state
+        entity_id: binary_sensor.graiguenamanagh_flood_alert
+        to: "on"
+    conditions:
+      - condition: state
+        entity_id: sensor.graiguenamanagh_water_level
+        attribute: trend
+        state: rising
+    actions:
+      - action: notify.notify
+        data:
+          message: The river is above its watch level and still rising.
+```
+
+Warn when a gauge has stopped reporting:
+
+```yaml
+automation:
+  - alias: Gauge offline
+    triggers:
+      - trigger: state
+        entity_id: sensor.graiguenamanagh_water_level
+        to: unavailable
+        for: "01:00:00"
+    actions:
+      - action: notify.notify
+        data:
+          message: The Graiguenamanagh gauge has not reported for an hour.
+```
+
+---
+
+## Known limitations
+
+- Levels are relative to each station's own datum, so 2 m at one station says nothing about 2 m at another. Use Water Level OD to compare stations.
+- The default thresholds (1.5, 2.5, 3.5 m) come from one River Barrow station and will be wrong elsewhere. Set them from the station's own history before relying on Flood Alert.
+- Temperature is the gauge housing's temperature, not the water's.
+- Gauges report every 15 minutes, and readings can arrive late or be revised by the OPW, so the latest value can be up to about half an hour old.
+- The river and station lists during setup are read from waterlevel.ie's web pages. If the site's layout changes, browsing by river can fail; adding by station number still works.
+- Each station is polled separately. Adding dozens of stations means dozens of downloads every 15 minutes.
+
+---
+
+## Troubleshooting
+
+**Entities are unavailable.** waterlevel.ie could not be reached, or the station returned no data. Check [the station's page](https://waterlevel.ie/hydro-data/) in a browser. The entities come back on their own at the next successful update.
+
+**"Could not load the river list".** waterlevel.ie's river pages didn't load. Try again later, or choose **Enter a station number** instead.
+
+**"No sensor data found for that station".** The number doesn't match a station that publishes data. Copy the address from the station's page on waterlevel.ie and paste it in.
+
+**Flood Stage is wrong for my river.** The thresholds are set per station on the device page; the defaults aren't tuned to your gauge.
+
+**Battery Voltage or Signal Strength is missing.** They're disabled by default. Enable them from the device page.
+
+**Something else.** Download diagnostics from **Settings → Devices & Services → Water Level IE → ⋮ → Download diagnostics**, turn on debug logging from the same menu, reproduce the problem, and attach both to an [issue](https://github.com/macuistin/waterlevel-ie-ha/issues).
+
+---
+
+## Removing the integration
+
+1. Go to **Settings → Devices & Services → Water Level IE**.
+2. For each station, open the **⋮** menu and choose **Delete**. This removes the station's device and entities.
+3. To remove the code as well, uninstall **Water Level IE** in HACS (or delete `config/custom_components/waterlevel_ie/` for a manual install), then restart Home Assistant.
 
 ---
 

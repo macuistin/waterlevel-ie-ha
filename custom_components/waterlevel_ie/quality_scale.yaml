@@ -1,6 +1,7 @@
 # Integration Quality Scale: Water Level IE
 # https://developers.home-assistant.io/docs/core/integration-quality-scale/
 # Every Bronze, Silver and Gold rule is done or exempt. Platinum has todos.
+# The docs-* rules point at sections of README.md.
 
 rules:
   # ── Bronze ──────────────────────────────────────────────────────────────────
@@ -18,7 +19,7 @@ rules:
     comment: The integration registers no actions
   docs-high-level-description: done
   docs-installation-instructions: done
-  docs-removal-instructions: todo
+  docs-removal-instructions: done  # README: Removing the integration
   entity-event-setup:
     status: exempt
     comment: No entity subscribes to events; the number entities only restore their last value
@@ -37,7 +38,7 @@ rules:
   docs-configuration-parameters:
     status: exempt
     comment: There is no options flow
-  docs-installation-parameters: todo
+  docs-installation-parameters: done  # README: the setup field table under Configuration
   entity-unavailable: done     # UpdateFailed when every live reading fails; flood stage is unknown with no level
   integration-owner: done      # @macuistin
   log-when-unavailable: done   # the coordinator logs the outage once and the recovery once; per-sensor failures log at debug
@@ -56,13 +57,13 @@ rules:
   discovery-update-info:
     status: exempt
     comment: A cloud service; there is nothing on the network to discover
-  docs-data-update: todo
-  docs-examples: todo
-  docs-known-limitations: todo
-  docs-supported-devices: todo
-  docs-supported-functions: todo
-  docs-troubleshooting: todo
-  docs-use-cases: todo
+  docs-data-update: done  # README: How the data is updated
+  docs-examples: done  # README: Automation examples
+  docs-known-limitations: done  # README: Known limitations
+  docs-supported-devices: done  # README: Supported stations
+  docs-supported-functions: done  # README: Entities
+  docs-troubleshooting: done  # README: Troubleshooting
+  docs-use-cases: done  # README: Use cases
   dynamic-devices:
     status: exempt
     comment: Each config entry is one station, so there is exactly one device per entry
