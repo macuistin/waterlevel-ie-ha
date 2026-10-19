@@ -10,6 +10,13 @@ testpaths = ["tests"]
 
 [tool.coverage.run]
 source = ["custom_components/waterlevel_ie"]
+branch = true
+
+[tool.coverage.report]
+# CI runs pytest --cov, which fails below this. The Silver tier asks for over 95%.
+fail_under = 95
+show_missing = true
+skip_covered = true
 
 [tool.ruff]
 line-length = 100

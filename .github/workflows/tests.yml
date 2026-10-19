@@ -51,7 +51,8 @@ jobs:
           cache: pip
           cache-dependency-path: requirements_test.txt
       - run: pip install -r requirements_test.txt ${{ matrix.pin }}
-      - run: python -m pytest -q --cov --cov-report=term-missing
+      # Fails below the coverage floor in pyproject.toml
+      - run: python -m pytest -q --cov
 
   # Early warning for the next Home Assistant release. Does not fail the workflow.
   pytest-beta:

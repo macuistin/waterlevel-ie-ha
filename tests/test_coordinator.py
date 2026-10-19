@@ -129,3 +129,50 @@ async def test_flow_reports_unexpected_errors(hass: HomeAssistant) -> None:
             result["flow_id"], {"station": "14029"}
         )
     assert result["errors"] == {"base": "unknown"}
+
+
+@pytest.mark.usefixtures("mock_setup_entry")
+async def test_flow_reports_connection_errors_while_probing(hass: HomeAssistant) -> None:
+    result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": "user"})
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"next_step_id": "station_number"}
+    )
+    with patch(
+        "custom_components.waterlevel_ie.config_flow._detect_station",
+        side_effect=aiohttp.ClientError,
+    ):
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], {"station": "14029"}
+        )
+    assert result["errors"] == {"base": "cannot_connect"}
+
+
+async def test_other_sensors_use_today_without_week(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
+) -> None:
+    """Only the water level reads the week file; other sensors stop at today's."""
+    aioclient_mock.get(
+        "https://waterlevel.ie/data/day/14029_0002.csv",
+        text="datetime,value\n2026-10-19T17:45:00Z,9.1\n2026-10-19T18:00:00Z,\n",
+    )
+    aioclient_mock.get(GEOJSON_URL, json={"features": []})
+    coordinator = _coordinator(hass, ["0002"])
+    data = await coordinator._async_update_data()
+
+    assert data == {"0002": 9.1}
+    assert coordinator.sensor_attrs["0002"] == {"last_reported": "2026-10-19T17:45:00Z"}
+    assert aioclient_mock.call_count == 2  # today's CSV and the one-off coordinate lookup
+
+
+async def test_timeouts_on_extra_files_keep_the_live_reading(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
+) -> None:
+    aioclient_mock.get(DAY, text="datetime,value\n2026-10-19T18:00:00Z,1.3\n")
+    aioclient_mock.get(WEEK, exc=TimeoutError())
+    aioclient_mock.get(SUMMARY, exc=TimeoutError())
+    aioclient_mock.get(GEOJSON_URL, json={"features": []})
+    coordinator = _coordinator(hass, ["0001", "0001_daily_mean"])
+    data = await coordinator._async_update_data()
+
+    assert data == {"0001": 1.3, "0001_daily_mean": None}
+    assert coordinator.sensor_attrs["0001"] == {"last_reported": "2026-10-19T18:00:00Z"}

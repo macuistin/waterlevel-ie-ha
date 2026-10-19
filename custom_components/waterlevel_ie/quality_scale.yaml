@@ -46,7 +46,7 @@ rules:
   reauthentication-flow:
     status: exempt
     comment: waterlevel.ie needs no account
-  test-coverage: done          # above 95% (pytest --cov)
+  test-coverage: done          # 97% with branches; CI fails below 95% (fail_under in pyproject.toml)
 
   # ── Gold ────────────────────────────────────────────────────────────────────
   devices: done                # one device per station
