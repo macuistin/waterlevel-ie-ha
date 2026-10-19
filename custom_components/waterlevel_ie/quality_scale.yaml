@@ -86,6 +86,6 @@ rules:
   # ── Platinum ────────────────────────────────────────────────────────────────
   async-dependency:
     status: todo
-    comment: The waterlevel.ie client is inline in coordinator.py and config_flow.py (see issue #8)
+    comment: The waterlevel.ie client is api.py inside the integration, not yet a library on PyPI
   inject-websession: done      # async_get_clientsession everywhere
   strict-typing: todo

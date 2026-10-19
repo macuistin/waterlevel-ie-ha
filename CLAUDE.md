@@ -18,7 +18,8 @@ doesn't meet.
 
 | Path | Role |
 | --- | --- |
-| `coordinator.py` | Downloads and parses the CSVs every 15 minutes; `flood_stage()` works out the stage from the held reading |
+| `api.py` | `WaterlevelApi` and pure `parse_*` functions: every request to waterlevel.ie and all parsing |
+| `coordinator.py` | Reads the shared latest-readings feed (`LatestReadings`) and each station's CSVs every 15 minutes; `flood_stage()` works out the stage from the held reading |
 | `config_flow.py` | Menu, browse by river, or enter a station number |
 | `entity.py` | `WaterlevelEntity`: unique id, device info, map coordinates |
 | `sensor.py` | `SENSOR_DESCRIPTIONS`, keyed by OPW sensor code or summary key |
@@ -36,7 +37,7 @@ doesn't meet.
   checks both.
 - Every platform sets `PARALLEL_UPDATES`.
 - Use `entry.runtime_data`, never `hass.data[DOMAIN]`.
-- Use `async_get_clientsession(hass)`; never open an `aiohttp.ClientSession`.
+- Use `async_get_clientsession(hass)`; never open an `aiohttp.ClientSession`. Requests go through `WaterlevelApi`, which raises `WaterlevelError` (or `StationNotFound` for a 404).
 - Don't poll waterlevel.ie more often than every 15 minutes (their API terms).
 - When every live fetch fails, the coordinator raises `UpdateFailed` so entities go
   unavailable. Per-sensor failures log at debug, so an outage logs once.

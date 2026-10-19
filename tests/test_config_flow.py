@@ -235,3 +235,22 @@ async def test_river_with_no_new_stations(
     result = await hass.config_entries.flow.async_configure(result["flow_id"], {"group": "3"})
     assert result["type"] is FlowResultType.FORM
     assert result["errors"] == {"group": "no_stations"}
+
+
+async def test_station_number_cannot_connect(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
+) -> None:
+    aioclient_mock.get("https://waterlevel.ie/0000014029/", exc=aiohttp.ClientError())
+    for sensor in ("0001", "0011", "OD", "0002", "0003", "0014"):
+        aioclient_mock.get(
+            f"https://waterlevel.ie/data/day/14029_{sensor}.csv", exc=aiohttp.ClientError()
+        )
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"next_step_id": "station_number"}
+    )
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {"station": "14029"})
+    assert result["type"] is FlowResultType.FORM
+    assert result["errors"] == {"base": "cannot_connect"}

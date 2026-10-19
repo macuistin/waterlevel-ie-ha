@@ -6,6 +6,10 @@ BASE_URL = "https://waterlevel.ie/data/{period}/{station}_{sensor}.csv"
 STATION_PAGE_URL = "https://waterlevel.ie/{station_padded}/"
 SUMMARY_URL = "https://waterlevel.ie/{station_padded}/{sensor}/summary/download/data.csv"
 GEOJSON_URL = "https://waterlevel.ie/geojson/"
+# Latest reading of every sensor on every station, in one file
+LATEST_GEOJSON_URL = "https://waterlevel.ie/geojson/latest/"
+GROUP_LIST_URL = "https://waterlevel.ie/group/list/"
+GROUP_URL = "https://waterlevel.ie/group/{group_id}/"
 HYDRO_DATA_URL = "https://waterlevel.ie/hydro-data/"
 
 # Live 15-minute sensors (fetched from the day/week CSV), by OPW sensor code.

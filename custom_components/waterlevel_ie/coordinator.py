@@ -3,57 +3,79 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import timedelta
+from datetime import datetime, timedelta
 import logging
 from typing import Any
 
-import aiohttp
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
+from homeassistant.util import dt as dt_util
 
+from .api import Reading, WaterlevelApi, WaterlevelError
 from .const import (
-    BASE_URL,
     CONF_AVAILABLE_SENSORS,
     CONF_LATITUDE,
     CONF_LONGITUDE,
     CONF_STATION,
     CONF_STATION_NAME,
     DOMAIN,
-    GEOJSON_URL,
+    SENSOR_TYPES,
     SUMMARY_SENSOR_TYPES,
-    SUMMARY_URL,
     THRESHOLD_ENTITIES,
     WATER_LEVEL,
 )
 
 _LOGGER = logging.getLogger(__name__)
 UPDATE_INTERVAL = timedelta(seconds=900)
+# OPW asks for bulk files to be fetched no more than once every 15 minutes
+LATEST_FEED_TTL = timedelta(minutes=15)
+# Daily summaries only change once a day
+SUMMARY_TTL = timedelta(hours=1)
 # Trend threshold: ±this many metres vs yesterday mean = rising/falling
 TREND_THRESHOLD = 0.02
+DATA_LATEST = f"{DOMAIN}_latest"
 
 type WaterlevelConfigEntry = ConfigEntry[WaterlevelCoordinator]
 
 
-async def fetch_station_coords(
-    session: aiohttp.ClientSession, station: str
-) -> tuple[float, float] | None:
-    """Return (latitude, longitude) for the station from the OPW GeoJSON, or None."""
-    try:
-        async with session.get(GEOJSON_URL, timeout=aiohttp.ClientTimeout(total=20)) as resp:
-            if resp.status != 200:
-                return None
-            geo = await resp.json(content_type=None)
-        for feature in geo.get("features", []):
-            # The ref may be zero-padded to 10 digits or not; compare numerically
-            ref = str(feature.get("properties", {}).get("ref", ""))
-            if ref.isdigit() and int(ref) == int(station):
-                lon, lat = feature["geometry"]["coordinates"]  # GeoJSON is [lon, lat]
-                return (float(lat), float(lon))
-    except Exception as err:
-        _LOGGER.debug("Could not fetch coordinates for station %s: %s", station, err)
-    return None
+class LatestReadings:
+    """Shared copy of the all-stations latest-readings feed.
+
+    Every station's coordinator reads from one copy, so the feed is fetched at
+    most once per LATEST_FEED_TTL however many stations are configured.
+    """
+
+    def __init__(self, api: WaterlevelApi) -> None:
+        self._api = api
+        self._data: dict[str, dict[str, Reading]] = {}
+        self._fetched: datetime | None = None
+        self._lock = asyncio.Lock()
+
+    async def get(self, station: str) -> dict[str, Reading]:
+        """Latest readings for one station, as {sensor: Reading}."""
+        async with self._lock:
+            now = dt_util.utcnow()
+            if self._fetched is None or now - self._fetched >= LATEST_FEED_TTL:
+                # Set before fetching so a broken feed isn't retried by every station
+                self._fetched = now
+                try:
+                    self._data = await self._api.latest()
+                except WaterlevelError as err:
+                    _LOGGER.debug("Latest-readings feed unavailable: %s", err)
+        return self._data.get(station, {})
+
+
+def async_get_latest(hass: HomeAssistant) -> LatestReadings:
+    """Return the shared latest-readings feed, creating it on first use.
+
+    It is shared by every config entry, so it lives in hass.data rather than in one
+    entry's runtime_data.
+    """
+    if DATA_LATEST not in hass.data:
+        hass.data[DATA_LATEST] = LatestReadings(WaterlevelApi(async_get_clientsession(hass)))
+    return hass.data[DATA_LATEST]
 
 
 class WaterlevelCoordinator(DataUpdateCoordinator[dict[str, Any]]):
@@ -67,12 +89,17 @@ class WaterlevelCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self.available_sensors: list[str] = entry.data.get(CONF_AVAILABLE_SENSORS, [])
         self.latitude: float | None = entry.data.get(CONF_LATITUDE)
         self.longitude: float | None = entry.data.get(CONF_LONGITUDE)
+        self.api = WaterlevelApi(async_get_clientsession(hass))
+        self._latest = async_get_latest(hass)
         # Flood thresholds: THRESHOLD_ENTITIES defaults, overridden by the number entities
         self._thresholds: dict[str, float | None] = {
             key: cfg["default"] for key, cfg in THRESHOLD_ENTITIES.items()
         }
         # Extra per-sensor metadata (e.g. last_reported, week_min/max, trend)
         self.sensor_attrs: dict[str, dict] = {}
+        # Daily summaries by source sensor, refreshed every SUMMARY_TTL
+        self._summaries: dict[str, dict] = {}
+        self._summaries_fetched: datetime | None = None
         # Only attempt the GeoJSON coordinate fetch once per session
         self._coord_fetch_attempted: bool = False
         super().__init__(
@@ -115,213 +142,105 @@ class WaterlevelCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
         # Lazily fetch GPS coordinates once per session if missing at setup time
         if self.latitude is None and not self._coord_fetch_attempted:
-            await self._fetch_coords_if_missing()
+            self._coord_fetch_attempted = True
+            if coords := await self.api.station_coords(self.station):
+                self.latitude, self.longitude = coords
 
-        # Split keys: live sensors vs daily-summary sensors
-        live_keys = [k for k in self.available_sensors if k not in SUMMARY_SENSOR_TYPES]
+        live_keys = [k for k in self.available_sensors if k in SENSOR_TYPES]
         summary_keys = [k for k in self.available_sensors if k in SUMMARY_SENSOR_TYPES]
 
-        # Fetch which source sensors need a summary CSV (deduplicated, order-stable)
-        summary_sources = list(
-            dict.fromkeys(SUMMARY_SENSOR_TYPES[k]["summary_source"] for k in summary_keys)
-        )
+        latest = await self._latest.get(self.station)
+        week = await self._fetch_week(WATER_LEVEL) if WATER_LEVEL in live_keys else []
+        await self._refresh_summaries(summary_keys)
 
-        session = async_get_clientsession(self.hass)
-        # Parallel fetch: live CSVs + one summary CSV per source sensor
-        live_coros = [self._fetch_sensor(session, k) for k in live_keys]
-        summary_coros = [self._fetch_summary(session, src) for src in summary_sources]
+        for key in live_keys:
+            reading = latest.get(key)
+            if key == WATER_LEVEL and week:
+                # The week CSV has the history the trend and week stats need;
+                # use whichever of it and the feed is newer for the current value
+                if reading is None or week[-1].time > reading.time:
+                    reading = week[-1]
+                values = [r.value for r in week]
+                self.sensor_attrs.setdefault(key, {}).update(
+                    week_min=round(min(values), 3), week_max=round(max(values), 3)
+                )
+            if reading is None:
+                reading = await self._fetch_last_reading(key)
+            data[key] = reading.value if reading else None
+            if reading:
+                self.sensor_attrs.setdefault(key, {})["last_reported"] = reading.time.isoformat()
 
-        all_results = await asyncio.gather(
-            *live_coros,
-            *summary_coros,
-            return_exceptions=True,
-        )
-
-        live_results = all_results[: len(live_keys)]
-        if live_results and all(isinstance(r, BaseException) for r in live_results):
+        if live_keys and all(data[key] is None for key in live_keys):
             # Nothing came back: mark the entities unavailable rather than unknown.
             # The coordinator logs this once, and again when the station recovers.
             raise UpdateFailed(
                 translation_domain=DOMAIN,
                 translation_key="update_failed",
-                translation_placeholders={"station": self.station, "error": str(live_results[0])},
+                translation_placeholders={
+                    "station": self.station,
+                    "error": "no sensor returned a reading",
+                },
             )
-
-        # Unpack live results: (value, last_reported, week_min, week_max) each
-        for key, result in zip(live_keys, live_results, strict=True):
-            if isinstance(result, BaseException):
-                _LOGGER.debug("Failed to fetch %s for station %s: %s", key, self.station, result)
-                data[key] = None
-            else:
-                value, last_reported, week_min, week_max = result
-                data[key] = value
-                attrs: dict = {}
-                if last_reported:
-                    attrs["last_reported"] = last_reported
-                if week_min is not None:
-                    attrs["week_min"] = round(week_min, 3)
-                if week_max is not None:
-                    attrs["week_max"] = round(week_max, 3)
-                if attrs:
-                    self.sensor_attrs[key] = attrs
-
-        # Unpack summary results (one dict per source sensor)
-        summary_by_source: dict[str, dict] = {}
-        for src, result in zip(summary_sources, all_results[len(live_keys) :], strict=True):
-            if isinstance(result, BaseException):
-                _LOGGER.debug(
-                    "Failed to fetch summary for station %s / %s: %s", self.station, src, result
-                )
-                summary_by_source[src] = {}
-            else:
-                summary_by_source[src] = result or {}
 
         # Populate daily-summary sensor values
         for key in summary_keys:
             cfg = SUMMARY_SENSOR_TYPES[key]
-            src = cfg["summary_source"]
-            col = cfg["summary_col"]  # already lowercase: "min" / "mean" / "max"
-            data[key] = summary_by_source.get(src, {}).get(col)
+            data[key] = self._summaries.get(cfg["summary_source"], {}).get(cfg["summary_col"])
 
         # Compute trend for water level sensor (0001) vs yesterday's daily mean
-        if "0001" in data and data["0001"] is not None:
-            yesterday_mean = summary_by_source.get("0001", {}).get("mean")
+        if data.get(WATER_LEVEL) is not None:
+            yesterday_mean = self._summaries.get(WATER_LEVEL, {}).get("mean")
             if yesterday_mean is not None:
-                delta = data["0001"] - yesterday_mean
+                delta = data[WATER_LEVEL] - yesterday_mean
                 if delta > TREND_THRESHOLD:
                     trend = "rising"
                 elif delta < -TREND_THRESHOLD:
                     trend = "falling"
                 else:
                     trend = "steady"
-                self.sensor_attrs.setdefault("0001", {})["trend"] = trend
+                self.sensor_attrs.setdefault(WATER_LEVEL, {})["trend"] = trend
 
         return data
 
-    async def _fetch_coords_if_missing(self) -> None:
-        """Fetch GPS coordinates from the OPW GeoJSON if not stored at setup time."""
-        self._coord_fetch_attempted = True
-        if coords := await fetch_station_coords(async_get_clientsession(self.hass), self.station):
-            self.latitude, self.longitude = coords
-            _LOGGER.debug("Fetched coordinates for station %s: %.5f, %.5f", self.station, *coords)
-
-    async def _fetch_sensor(
-        self, session: aiohttp.ClientSession, sensor_key: str
-    ) -> tuple[float | None, str | None, float | None, float | None]:
-        """Fetch the latest live reading plus week stats.
-
-        Returns (value, last_reported_str, week_min, week_max).
-        Falls back to week CSV if today has no data.
-        """
-        value: float | None = None
-        last_reported: str | None = None
-        week_min: float | None = None
-        week_max: float | None = None
-
-        for period in ("day", "week"):
-            url = BASE_URL.format(period=period, station=self.station, sensor=sensor_key)
-            try:
-                async with session.get(url, timeout=aiohttp.ClientTimeout(total=30)) as resp:
-                    resp.raise_for_status()
-                    text = await resp.text()
-            except aiohttp.ClientError as err:
-                if period == "week":
-                    raise UpdateFailed(f"HTTP error fetching {url}: {err}") from err
-                continue
-
-            lines = [ln.strip() for ln in text.strip().splitlines() if ln.strip()]
-
-            # For the week CSV, compute min/max across all valid readings
-            if period == "week":
-                week_vals: list[float] = []
-                for line in lines:
-                    parts = line.split(",")
-                    if len(parts) >= 2 and parts[1].strip():
-                        try:
-                            week_vals.append(float(parts[1].strip()))
-                        except ValueError:
-                            pass
-                if week_vals:
-                    week_min = min(week_vals)
-                    week_max = max(week_vals)
-
-            # Walk back to find the last row with a real value
-            for line in reversed(lines):
-                parts = line.split(",")
-                if len(parts) >= 2 and parts[1].strip():
-                    try:
-                        v = float(parts[1].strip())
-                        if value is None:
-                            value = v
-                            last_reported = parts[0].strip()
-                            if period == "week":
-                                _LOGGER.debug(
-                                    "Station %s sensor %s: no data today, last known from week: %s",
-                                    self.station,
-                                    sensor_key,
-                                    last_reported,
-                                )
-                        break
-                    except ValueError:
-                        continue
-
-            # Got a value from day CSV — still fetch week for stats if it's 0001
-            if value is not None and period == "day" and sensor_key == "0001":
-                week_url = BASE_URL.format(period="week", station=self.station, sensor=sensor_key)
-                try:
-                    async with session.get(
-                        week_url, timeout=aiohttp.ClientTimeout(total=30)
-                    ) as resp:
-                        if resp.status == 200:
-                            wtext = await resp.text()
-                            week_vals = []
-                            for line in wtext.strip().splitlines():
-                                parts = line.strip().split(",")
-                                if len(parts) >= 2 and parts[1].strip():
-                                    try:
-                                        week_vals.append(float(parts[1].strip()))
-                                    except ValueError:
-                                        pass
-                            if week_vals:
-                                week_min = min(week_vals)
-                                week_max = max(week_vals)
-                except Exception:
-                    pass
-                break  # Don't also iterate with period="week" now
-
-            if value is not None:
-                break
-
-        return value, last_reported, week_min, week_max
-
-    async def _fetch_summary(self, session: aiohttp.ClientSession, sensor_key: str) -> dict:
-        """Fetch the most recent daily stats (min/mean/max) from the summary CSV."""
-        padded = self.station.zfill(10)
-        url = SUMMARY_URL.format(station_padded=padded, sensor=sensor_key)
+    async def _fetch_week(self, sensor: str) -> list[Reading]:
+        """Week of readings for a sensor, or [] if it can't be fetched."""
         try:
-            async with session.get(url, timeout=aiohttp.ClientTimeout(total=30)) as resp:
-                resp.raise_for_status()
-                text = await resp.text()
-        except aiohttp.ClientError as err:
-            _LOGGER.debug("Failed to fetch summary %s: %s", url, err)
-            return {}
+            return await self.api.series(self.station, sensor, "week")
+        except WaterlevelError as err:
+            _LOGGER.debug("Failed to fetch %s for station %s: %s", sensor, self.station, err)
+            return []
 
-        # CSV columns: Datetime,Value,Min,Mean,Max
-        # Rows with date only (no time) are daily aggregates with Min/Mean/Max populated.
-        lines = [ln.strip() for ln in text.strip().splitlines() if ln.strip()]
-        # Walk back to find the most recent daily aggregate row (non-empty Mean)
-        for line in reversed(lines):
-            if line.startswith("Datetime"):
-                break
-            parts = [p.strip() for p in line.split(",")]
-            if len(parts) >= 5 and parts[3]:  # Mean column (index 3) is non-empty
-                try:
-                    return {
-                        "min": float(parts[2]) if parts[2] else None,
-                        "mean": float(parts[3]) if parts[3] else None,
-                        "max": float(parts[4]) if parts[4] else None,
-                    }
-                except ValueError:
-                    continue
+    async def _fetch_last_reading(self, sensor: str) -> Reading | None:
+        """Last reading from the day CSV, falling back to the week CSV."""
+        for period in ("day", "week"):
+            try:
+                if readings := await self.api.series(self.station, sensor, period):
+                    return readings[-1]
+            except WaterlevelError as err:
+                _LOGGER.debug(
+                    "Failed to fetch %s %s for station %s: %s", period, sensor, self.station, err
+                )
+        return None
 
-        return {}
+    async def _refresh_summaries(self, summary_keys: list[str]) -> None:
+        """Re-fetch daily summaries when older than SUMMARY_TTL; keep old ones on failure."""
+        now = dt_util.utcnow()
+        if not summary_keys or (
+            self._summaries_fetched and now - self._summaries_fetched < SUMMARY_TTL
+        ):
+            return
+        self._summaries_fetched = now
+        sources = list(
+            dict.fromkeys(SUMMARY_SENSOR_TYPES[k]["summary_source"] for k in summary_keys)
+        )
+        results = await asyncio.gather(
+            *(self.api.daily_summary(self.station, src) for src in sources),
+            return_exceptions=True,
+        )
+        for src, result in zip(sources, results, strict=True):
+            if isinstance(result, BaseException):
+                _LOGGER.debug(
+                    "Failed to fetch summary for station %s / %s: %s", self.station, src, result
+                )
+            elif result:
+                self._summaries[src] = result

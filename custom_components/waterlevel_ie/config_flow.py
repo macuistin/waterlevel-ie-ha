@@ -6,7 +6,6 @@ import logging
 import re
 from typing import Any
 
-import aiohttp
 from homeassistant import config_entries
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.selector import (
@@ -19,25 +18,18 @@ from homeassistant.helpers.selector import (
 )
 import voluptuous as vol
 
+from .api import StationNotFound, WaterlevelApi, WaterlevelError
 from .const import (
-    BASE_URL,
     CONF_AVAILABLE_SENSORS,
     CONF_LATITUDE,
     CONF_LONGITUDE,
     CONF_STATION,
     CONF_STATION_NAME,
     DOMAIN,
-    SENSOR_TYPES,
-    STATION_PAGE_URL,
-    SUMMARY_SENSOR_TYPES,
-    SUMMARY_URL,
+    GROUP_LIST_URL,
 )
-from .coordinator import fetch_station_coords
 
 _LOGGER = logging.getLogger(__name__)
-GROUP_LIST_URL = "https://waterlevel.ie/group/list/"
-GROUP_URL = "https://waterlevel.ie/group/{group_id}/"
-TIMEOUT = aiohttp.ClientTimeout(total=15)
 CONF_GROUP = "group"
 
 
@@ -59,103 +51,19 @@ def normalize_station(raw: str) -> str | None:
     return str(int(digits)).zfill(5)
 
 
-async def _fetch_groups(session: aiohttp.ClientSession) -> dict[str, str]:
-    async with session.get(GROUP_LIST_URL, timeout=TIMEOUT) as resp:
-        resp.raise_for_status()
-        html = await resp.text()
-    groups: dict[str, str] = {}
-    for m in re.finditer(r'href="/group/(\d+)/">([^<]+)</a>', html):
-        gid, name = m.group(1), m.group(2).strip()
-        display = re.sub(r"\s*[-\u2013]\s*water level.*$", "", name, flags=re.I).strip()
-        groups[gid] = display or name
-    return dict(sorted(groups.items(), key=lambda kv: kv[1]))
-
-
-async def _fetch_stations(session: aiohttp.ClientSession, group_id: str) -> dict[str, str]:
-    url = GROUP_URL.format(group_id=group_id)
-    async with session.get(url, timeout=TIMEOUT) as resp:
-        resp.raise_for_status()
-        html = await resp.text()
-    stations: dict[str, str] = {}
-    for m in re.finditer(r'href="/(\d{10})/">([^<]+)</a>', html):
-        if num := normalize_station(m.group(1)):
-            stations[num] = m.group(2).strip()
-    return dict(sorted(stations.items(), key=lambda kv: kv[1]))
-
-
-async def _detect_station(
-    session: aiohttp.ClientSession, station: str, name_hint: str | None = None
-) -> dict:
-    """Probe a station for available sensors and metadata.
+async def _detect_station(api: WaterlevelApi, station: str, name_hint: str | None = None) -> dict:
+    """Probe a station and build its config entry data.
 
     name_hint: preferred display name (e.g. from the river group picker).
     Falls back to the station page title, then to 'Station {station}'.
     """
-    padded = station.zfill(10)
-    page_url = STATION_PAGE_URL.format(station_padded=padded)
-    station_name = name_hint or f"Station {station}"
-    available: list[str] = []
-    try:
-        async with session.get(page_url, timeout=TIMEOUT) as resp:
-            if resp.status == 200:
-                html = await resp.text()
-                # Extract station name from page if no group-picker hint
-                if not name_hint:
-                    m = re.search(r"Sensors on Station\s+\d+\s+([^<]+)", html)
-                    if m:
-                        station_name = m.group(1).strip()
-                # Detect all sensor types by parsing table links on the station page.
-                # Links look like /0000014029/0001/ or /0000026021/0014/
-                # This is far more efficient than probing each sensor CSV individually.
-                page_codes = set(re.findall(r"/\d{10}/([A-Za-z0-9]+)/(?:week|day|summary)/", html))
-                for sensor_key in SENSOR_TYPES:
-                    if sensor_key in page_codes:
-                        available.append(sensor_key)
-    except Exception as err:
-        _LOGGER.debug("Could not fetch station page: %s", err)
-    # Fall back to CSV probing if page parsing gave nothing (e.g. HTTP error above)
-    if not available:
-        for sensor_key in SENSOR_TYPES:
-            url = BASE_URL.format(period="day", station=station, sensor=sensor_key)
-            try:
-                async with session.get(url, timeout=aiohttp.ClientTimeout(total=10)) as resp:
-                    if resp.status == 200 and (await resp.text()).strip():
-                        available.append(sensor_key)
-            except Exception:
-                pass
-    # Probe summary (daily min/mean/max) for each sensor that supports it
-    already_probed: set[str] = set()
-    for cfg in SUMMARY_SENSOR_TYPES.values():
-        source = cfg["summary_source"]
-        if source not in available or source in already_probed:
-            continue
-        already_probed.add(source)
-        sum_url = SUMMARY_URL.format(station_padded=padded, sensor=source)
-        try:
-            async with session.get(sum_url, timeout=aiohttp.ClientTimeout(total=10)) as resp:
-                if resp.status == 200:
-                    text = await resp.text()
-                    # Check that there's at least one row with a Mean value
-                    has_mean = any(
-                        len(p := line.split(",")) >= 5 and p[3].strip()
-                        for line in text.splitlines()
-                        if line.strip() and not line.startswith("Datetime")
-                    )
-                    if has_mean:
-                        # Add all summary keys for this source sensor
-                        for sk, sc in SUMMARY_SENSOR_TYPES.items():
-                            if sc["summary_source"] == source:
-                                available.append(sk)
-        except Exception:
-            pass
-    if not available:
-        raise ValueError(f"No sensor data found for station {station}")
+    page_name, available = await api.detect_station(station)
     result = {
         CONF_STATION: station,
-        CONF_STATION_NAME: station_name,
+        CONF_STATION_NAME: name_hint or page_name or f"Station {station}",
         CONF_AVAILABLE_SENSORS: available,
     }
-    if coords := await fetch_station_coords(session, station):
+    if coords := await api.station_coords(station):
         result[CONF_LATITUDE], result[CONF_LONGITUDE] = coords
     return result
 
@@ -177,12 +85,12 @@ class WaterlevelConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     async def async_step_river(self, user_input: dict[str, Any] | None = None):
         """Pick a river, then load its stations."""
         errors: dict[str, str] = {}
-        session = async_get_clientsession(self.hass)
+        api = WaterlevelApi(async_get_clientsession(self.hass))
         if user_input is not None:
             group_id = user_input[CONF_GROUP]
             try:
-                stations = await _fetch_stations(session, group_id)
-            except (aiohttp.ClientError, TimeoutError) as err:
+                stations = await api.group_stations(group_id)
+            except WaterlevelError as err:
                 _LOGGER.warning("Failed to fetch stations for river %s: %s", group_id, err)
                 errors["base"] = "cannot_connect"
             else:
@@ -199,8 +107,8 @@ class WaterlevelConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 errors[CONF_GROUP] = "no_stations"
         if not self._groups:
             try:
-                self._groups = await _fetch_groups(session)
-            except (aiohttp.ClientError, TimeoutError) as err:
+                self._groups = await api.groups()
+            except WaterlevelError as err:
                 _LOGGER.warning("Failed to fetch river list: %s", err)
             if not self._groups:
                 # Nothing to pick from; the user can still type a station number.
@@ -290,11 +198,11 @@ class WaterlevelConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self._abort_if_unique_id_configured()
         try:
             info = await _detect_station(
-                async_get_clientsession(self.hass), station, name_hint=name_hint
+                WaterlevelApi(async_get_clientsession(self.hass)), station, name_hint=name_hint
             )
-        except ValueError:
+        except StationNotFound:
             errors[CONF_STATION] = "station_not_found"
-        except (aiohttp.ClientError, TimeoutError):
+        except WaterlevelError:
             errors["base"] = "cannot_connect"
         except Exception:
             _LOGGER.exception("Unexpected error adding station %s", station)

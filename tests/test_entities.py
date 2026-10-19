@@ -13,7 +13,7 @@ from pytest_homeassistant_custom_component.common import (
 )
 from pytest_homeassistant_custom_component.test_util.aiohttp import AiohttpClientMocker
 
-from custom_components.waterlevel_ie.const import DOMAIN, GEOJSON_URL
+from custom_components.waterlevel_ie.const import DOMAIN, GEOJSON_URL, LATEST_GEOJSON_URL
 from custom_components.waterlevel_ie.diagnostics import async_get_config_entry_diagnostics
 
 STATION = "14029"
@@ -44,6 +44,8 @@ def _mock_readings(
                 aioclient_mock.get(url, text=_csv(value))
     aioclient_mock.get(SUMMARY_URL, text=SUMMARY_CSV)
     aioclient_mock.get(GEOJSON_URL, json=GEOJSON)
+    # Nothing in the shared feed, so every reading comes from the CSVs
+    aioclient_mock.get(LATEST_GEOJSON_URL, json={"features": []})
 
 
 def _mock_outage(aioclient_mock: AiohttpClientMocker) -> None:
@@ -55,6 +57,7 @@ def _mock_outage(aioclient_mock: AiohttpClientMocker) -> None:
             )
     aioclient_mock.get(SUMMARY_URL, exc=aiohttp.ClientError("down"))
     aioclient_mock.get(GEOJSON_URL, exc=aiohttp.ClientError("down"))
+    aioclient_mock.get(LATEST_GEOJSON_URL, exc=aiohttp.ClientError("down"))
 
 
 async def _setup(hass: HomeAssistant) -> MockConfigEntry:
@@ -239,6 +242,7 @@ async def test_station_without_water_level(
     """A temperature-only station gets no flood entities, and no coordinates when unknown."""
     aioclient_mock.get(DATA_URL.format(period="day", sensor="0002"), text=_csv("9.5"))
     aioclient_mock.get(GEOJSON_URL, json={"features": []})
+    aioclient_mock.get(LATEST_GEOJSON_URL, json={"features": []})
     entry = MockConfigEntry(
         domain=DOMAIN,
         unique_id=f"{DOMAIN}_{STATION}",

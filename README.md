@@ -32,7 +32,7 @@ Each gauge station becomes a **device** in Home Assistant with all its sensors, 
 - Browse and add any of the ~500+ Irish river gauge stations
 - Search by river (Barrow, Shannon, Boyne, etc.) then pick a station, or enter a station number directly
 - Auto-detects which sensors are available for each station
-- Sensors poll every 15 minutes (matching the gauge update frequency)
+- Sensors poll every 15 minutes (matching the gauge update frequency), reading one shared OPW latest-readings file for all your stations to keep requests to waterlevel.ie low
 - Add as many stations as you like — each becomes its own device
 - No YAML configuration required
 
@@ -134,7 +134,7 @@ Find station numbers and rivers at [waterlevel.ie/group/list](https://waterlevel
 
 ## How the data is updated
 
-Every 15 minutes, the integration downloads each live sensor's readings for today from waterlevel.ie and uses the latest one. If today has no readings yet it falls back to the last 7 days, and for Water Level it also reads the week to work out `week_min`, `week_max`. The daily mean, min and max come from the station's summary file, which waterlevel.ie updates once a day, so they describe yesterday. Coordinates come from the waterlevel.ie station map when the station is added.
+Every 15 minutes, the integration reads OPW's latest-readings file, which holds the newest reading of every sensor on every station. It is downloaded at most once every 15 minutes and shared by all your stations, so adding more stations doesn't add more of these downloads. For Water Level, each station also reads its last 7 days to work out `week_min` and `week_max`, and uses whichever reading is newer. A sensor missing from the shared file falls back to that station's readings for today, then for the last 7 days. The daily mean, min and max come from the station's summary file, which waterlevel.ie updates once a day, so they describe yesterday; it is re-read at most once an hour. Coordinates come from the waterlevel.ie station map when the station is added.
 
 The flood stage and Flood Alert are worked out in Home Assistant from the latest Water Level and your thresholds; changing a threshold updates them straight away without a download.
 
@@ -208,7 +208,7 @@ automation:
 - Temperature is the gauge housing's temperature, not the water's.
 - Gauges report every 15 minutes, and readings can arrive late or be revised by the OPW, so the latest value can be up to about half an hour old.
 - The river and station lists during setup are read from waterlevel.ie's web pages. If the site's layout changes, browsing by river can fail; adding by station number still works.
-- Each station is polled separately. Adding dozens of stations means dozens of downloads every 15 minutes.
+- Each station with a Water Level still downloads its own week of readings every 15 minutes (plus its summary hourly). The latest readings themselves are shared across all stations.
 
 ---
 
