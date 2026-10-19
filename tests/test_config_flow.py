@@ -72,7 +72,7 @@ async def test_menu(hass: HomeAssistant) -> None:
         DOMAIN, context={"source": config_entries.SOURCE_USER}
     )
     assert result["type"] is FlowResultType.MENU
-    assert result["menu_options"] == ["river", "station_number"]
+    assert result["menu_options"] == ["nearby", "river", "station_number"]
 
 
 async def test_station_number_creates_entry(
@@ -258,4 +258,114 @@ async def test_station_number_cannot_connect(
     )
     result = await hass.config_entries.flow.async_configure(result["flow_id"], {"station": "14029"})
     assert result["type"] is FlowResultType.FORM
+    assert result["errors"] == {"base": "cannot_connect"}
+
+
+def _latest_station(station: str, name: str, lon: float, lat: float) -> dict:
+    return {
+        "properties": {
+            "station_ref": station.zfill(10),
+            "station_name": name,
+            "sensor_ref": "0001",
+            "datetime": "2026-10-19T18:15:00Z",
+            "value": "0.5",
+        },
+        "geometry": {"type": "Point", "coordinates": [lon, lat]},
+    }
+
+
+LATEST_STATIONS = {
+    "features": [
+        # About 2 km and 11 km from the test home location, and one far away in Donegal
+        _latest_station("14029", "Graiguenamanagh", -6.95, 52.54),
+        _latest_station("14019", "Levitstown", -6.95, 52.45),
+        _latest_station("01041", "Sandy Mills", -7.575758, 54.838318),
+    ]
+}
+
+
+async def _start_nearby(hass: HomeAssistant) -> dict:
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
+    return await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"next_step_id": "nearby"}
+    )
+
+
+@pytest.mark.usefixtures("mock_setup_entry")
+async def test_nearby_lists_closest_first(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
+) -> None:
+    hass.config.latitude, hass.config.longitude = 52.55, -6.97
+    aioclient_mock.get("https://waterlevel.ie/geojson/latest/", json=LATEST_STATIONS)
+    _mock_station(aioclient_mock)
+    # Already added, so not listed
+    MockConfigEntry(domain=DOMAIN, unique_id=f"{DOMAIN}_01041").add_to_hass(hass)
+
+    result = await _start_nearby(hass)
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "nearby"
+    location = next(key for key in result["data_schema"].schema if key == "location")
+    assert location.default() == {"latitude": 52.55, "longitude": -6.97, "radius": 15000}
+
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {"location": {"latitude": 52.55, "longitude": -6.97, "radius": 500000}},
+    )
+    assert result["step_id"] == "nearby_station"
+    options = result["data_schema"].schema["station"].config["options"]
+    assert [o["value"] for o in options] == ["14029", "14019"]
+    assert options[0]["label"] == "Graiguenamanagh (14029), 1.8 km"
+
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {"station": "14029"})
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["title"] == "Graiguenamanagh"
+
+
+async def test_nearby_station_error_stays_on_step(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
+) -> None:
+    aioclient_mock.get("https://waterlevel.ie/geojson/latest/", json=LATEST_STATIONS)
+    aioclient_mock.get("https://waterlevel.ie/0000014029/", exc=aiohttp.ClientError())
+    for sensor in ("0001", "0011", "OD", "0002", "0003", "0014"):
+        aioclient_mock.get(
+            f"https://waterlevel.ie/data/day/14029_{sensor}.csv", exc=aiohttp.ClientError()
+        )
+    result = await _start_nearby(hass)
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {"location": {"latitude": 52.55, "longitude": -6.97, "radius": 15000}},
+    )
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {"station": "14029"})
+    assert result["step_id"] == "nearby_station"
+    assert result["errors"] == {"base": "cannot_connect"}
+
+
+async def test_nearby_none_in_range(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
+) -> None:
+    aioclient_mock.get("https://waterlevel.ie/geojson/latest/", json=LATEST_STATIONS)
+    result = await _start_nearby(hass)
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {"location": {"latitude": 51.9, "longitude": -10.0, "radius": 5000}},
+    )
+    assert result["step_id"] == "nearby"
+    assert result["errors"] == {"base": "no_nearby_stations"}
+    # The form keeps the location that was searched
+    location = next(key for key in result["data_schema"].schema if key == "location")
+    assert location.default()["radius"] == 5000
+
+
+async def test_nearby_cannot_connect(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
+) -> None:
+    aioclient_mock.get("https://waterlevel.ie/geojson/latest/", exc=aiohttp.ClientError())
+    result = await _start_nearby(hass)
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {"location": {"latitude": 52.55, "longitude": -6.97, "radius": 15000}},
+    )
+    assert result["step_id"] == "nearby"
     assert result["errors"] == {"base": "cannot_connect"}

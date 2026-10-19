@@ -10,6 +10,7 @@ from custom_components.waterlevel_ie.api import (
     parse_group_stations,
     parse_groups,
     parse_latest,
+    parse_latest_stations,
     parse_series,
     parse_station_page,
     parse_summary,
@@ -114,3 +115,27 @@ def test_parse_station_page() -> None:
     )
     assert name == "Graiguenamanagh Upper"
     assert codes == {"0001", "OD"}
+
+
+def test_parse_latest_stations() -> None:
+    geo = {
+        "features": [
+            {
+                "properties": {"station_ref": "0000014029", "station_name": "Graiguenamanagh"},
+                "geometry": {"coordinates": [-6.95, 52.54]},
+            },
+            # No name: a placeholder
+            {
+                "properties": {"station_ref": "0000001041"},
+                "geometry": {"coordinates": [-7.5, 54.8]},
+            },
+            # Skipped: no location, bad ref
+            {"properties": {"station_ref": "0000014019"}, "geometry": None},
+            {"properties": {"station_ref": "0000000000"}, "geometry": {"coordinates": [0, 0]}},
+            {"properties": {"station_ref": "abc"}, "geometry": {"coordinates": [0, 0]}},
+        ]
+    }
+    assert parse_latest_stations(geo) == {
+        "14029": ("Graiguenamanagh", 52.54, -6.95),
+        "01041": ("Station 1041", 54.8, -7.5),
+    }

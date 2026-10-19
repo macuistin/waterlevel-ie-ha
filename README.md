@@ -30,7 +30,7 @@ Each gauge station becomes a **device** in Home Assistant with all its sensors, 
 ## Features
 
 - Browse and add any of the ~500+ Irish river gauge stations
-- Search by river (Barrow, Shannon, Boyne, etc.) then pick a station, or enter a station number directly
+- Find stations near your home (or any location), search by river (Barrow, Shannon, Boyne, etc.) then pick a station, or enter a station number directly
 - Auto-detects which sensors are available for each station
 - Sensors poll every 15 minutes (matching the gauge update frequency), reading one shared OPW latest-readings file for all your stations to keep requests to waterlevel.ie low
 - Add as many stations as you like — each becomes its own device
@@ -123,6 +123,7 @@ After installation and restart:
 1. Go to **Settings → Devices & Services → Add Integration**
 2. Search for **Water Level IE**
 3. Choose how to find the station:
+   - **Find stations near a location**: starts at your home location; drag the pin or change the radius, then pick from the stations in that area, closest first
    - **Browse by river**: pick a river, then a station on it. Stations you've already added are left out of the list.
    - **Enter a station number**: type the number (e.g. `14029`) or paste the station's page address from waterlevel.ie (e.g. `https://waterlevel.ie/0000014029/`)
 4. The integration detects available sensors and creates a device
@@ -131,6 +132,7 @@ To add more stations, repeat from step 1 — each station is a separate integrat
 
 | Setup field | What to enter |
 |---|---|
+| Location | The area to search. Starts at your home location with a 15 km radius |
 | River | The river or catchment the gauge is on, as waterlevel.ie lists it |
 | Station | A gauge on that river. Stations you've already added are left out |
 | Station number or address | The number from the station's waterlevel.ie page (`14029`, or `0000014029`), or the page's address |

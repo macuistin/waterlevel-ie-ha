@@ -158,6 +158,24 @@ def parse_hydro_series(payload: object, shortname: str | None = None) -> list[Re
     return []
 
 
+def parse_latest_stations(geo: dict) -> dict[str, tuple[str, float, float]]:
+    """Every station in the latest-readings GeoJSON as {station: (name, lat, lon)}."""
+    stations: dict[str, tuple[str, float, float]] = {}
+    for feature in geo.get("features", []):
+        props = feature.get("properties") or {}
+        ref = str(props.get("station_ref", ""))
+        if not ref.isdigit() or not int(ref):
+            continue
+        try:
+            lon, lat = feature["geometry"]["coordinates"]  # GeoJSON is [lon, lat]
+            location = (float(lat), float(lon))
+        except (KeyError, TypeError, ValueError):
+            continue
+        name = str(props.get("station_name") or f"Station {int(ref)}")
+        stations[str(int(ref)).zfill(5)] = (name, *location)
+    return stations
+
+
 def find_station_coords(geo: dict, station: str) -> tuple[float, float] | None:
     """Return (latitude, longitude) for a station from the station GeoJSON."""
     for feature in geo.get("features", []):
@@ -244,6 +262,10 @@ class WaterlevelApi:
     async def latest(self) -> dict[str, dict[str, Reading]]:
         """Latest reading of every sensor on every station (one shared file)."""
         return parse_latest(await self._get_json(LATEST_GEOJSON_URL))
+
+    async def stations(self) -> dict[str, tuple[str, float, float]]:
+        """Every station with its name and location, as {station: (name, lat, lon)}."""
+        return parse_latest_stations(await self._get_json(LATEST_GEOJSON_URL))
 
     async def station_coords(self, station: str) -> tuple[float, float] | None:
         """(latitude, longitude) for a station, or None if unavailable."""

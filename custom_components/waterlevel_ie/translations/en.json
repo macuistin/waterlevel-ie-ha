@@ -5,8 +5,29 @@
         "title": "Add a gauge station",
         "description": "How would you like to find the station?",
         "menu_options": {
+          "nearby": "Find stations near a location",
           "river": "Browse by river",
           "station_number": "Enter a station number"
+        }
+      },
+      "nearby": {
+        "title": "Find stations nearby",
+        "description": "Choose a location and search radius. It starts at your home location.",
+        "data": {
+          "location": "Location"
+        },
+        "data_description": {
+          "location": "Drag the pin or change the circle to search a different area."
+        }
+      },
+      "nearby_station": {
+        "title": "Choose a station",
+        "description": "Gauge stations in that area, closest first. Stations you have already added are not listed.",
+        "data": {
+          "station": "Station"
+        },
+        "data_description": {
+          "station": "The gauge station to add. Each station becomes its own device."
         }
       },
       "river": {
@@ -45,6 +66,7 @@
       "invalid_station": "That doesn't look like a station number. Enter digits only, or paste the station's page address.",
       "station_not_found": "No sensor data found for that station. Check it exists on waterlevel.ie.",
       "no_stations": "No stations that you haven't already added were found on this river.",
+      "no_nearby_stations": "No stations that you haven't already added were found in that area. Try a larger radius.",
       "unknown": "Unexpected error. Check the Home Assistant logs."
     },
     "abort": {

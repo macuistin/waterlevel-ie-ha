@@ -7,10 +7,13 @@ import re
 from typing import Any
 
 from homeassistant import config_entries
+from homeassistant.const import CONF_LOCATION, CONF_RADIUS
 from homeassistant.core import callback
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.selector import (
     BooleanSelector,
+    LocationSelector,
+    LocationSelectorConfig,
     NumberSelector,
     NumberSelectorConfig,
     NumberSelectorMode,
@@ -21,6 +24,7 @@ from homeassistant.helpers.selector import (
     TextSelectorConfig,
     TextSelectorType,
 )
+from homeassistant.util.location import distance
 import voluptuous as vol
 
 from .api import StationNotFound, WaterlevelApi, WaterlevelError
@@ -45,6 +49,7 @@ from .const import (
 
 _LOGGER = logging.getLogger(__name__)
 CONF_GROUP = "group"
+DEFAULT_NEARBY_RADIUS = 15000  # metres
 
 
 def normalize_station(raw: str) -> str | None:
@@ -98,10 +103,87 @@ class WaterlevelConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self._groups: dict[str, str] = {}
         self._selected_group: str | None = None
         self._stations: dict[str, str] = {}
+        self._distances: dict[str, float] = {}
 
     async def async_step_user(self, user_input: dict[str, Any] | None = None):
-        """Ask whether to browse by river or type a station number."""
-        return self.async_show_menu(step_id="user", menu_options=["river", "station_number"])
+        """Ask whether to find stations nearby, browse by river, or type a station number."""
+        return self.async_show_menu(
+            step_id="user", menu_options=["nearby", "river", "station_number"]
+        )
+
+    async def async_step_nearby(self, user_input: dict[str, Any] | None = None):
+        """Pick a location and radius (the home location by default)."""
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            location = user_input[CONF_LOCATION]
+            try:
+                stations = await WaterlevelApi(async_get_clientsession(self.hass)).stations()
+            except WaterlevelError as err:
+                _LOGGER.warning("Failed to fetch the station list: %s", err)
+                errors["base"] = "cannot_connect"
+            else:
+                configured = self._async_current_ids()
+                nearby = []
+                for sid, (name, lat, lon) in stations.items():
+                    if f"{DOMAIN}_{sid}" in configured:
+                        continue
+                    dist = distance(location[CONF_LATITUDE], location[CONF_LONGITUDE], lat, lon)
+                    if dist is not None and dist <= location[CONF_RADIUS]:
+                        nearby.append((dist, sid, name))
+                nearby.sort()
+                if nearby:
+                    self._stations = {sid: name for _, sid, name in nearby}
+                    self._distances = {sid: dist for dist, sid, _ in nearby}
+                    return await self.async_step_nearby_station()
+                errors["base"] = "no_nearby_stations"
+        default = (user_input or {}).get(CONF_LOCATION) or {
+            CONF_LATITUDE: self.hass.config.latitude,
+            CONF_LONGITUDE: self.hass.config.longitude,
+            CONF_RADIUS: DEFAULT_NEARBY_RADIUS,
+        }
+        return self.async_show_form(
+            step_id="nearby",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(CONF_LOCATION, default=default): LocationSelector(
+                        LocationSelectorConfig(radius=True)
+                    ),
+                }
+            ),
+            errors=errors,
+        )
+
+    async def async_step_nearby_station(self, user_input: dict[str, Any] | None = None):
+        """Pick one of the stations found nearby, closest first."""
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            station = user_input[CONF_STATION]
+            result = await self._async_add_station(
+                station, errors, name_hint=self._stations.get(station)
+            )
+            if result is not None:
+                return result
+        return self.async_show_form(
+            step_id="nearby_station",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(CONF_STATION): SelectSelector(
+                        SelectSelectorConfig(
+                            options=[
+                                {
+                                    "value": sid,
+                                    "label": f"{name} ({sid}), "
+                                    f"{self._distances[sid] / 1000:.1f} km",
+                                }
+                                for sid, name in self._stations.items()
+                            ],
+                            mode=SelectSelectorMode.DROPDOWN,
+                        )
+                    ),
+                }
+            ),
+            errors=errors,
+        )
 
     async def async_step_river(self, user_input: dict[str, Any] | None = None):
         """Pick a river, then load its stations."""
