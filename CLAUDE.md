@@ -42,7 +42,7 @@ and don't claim a rule the code doesn't meet.
   After it merges, the maintainer runs the Release workflow on main with `X.Y.Z` (Actions >
   Release > Run workflow), or pushes the tag `vX.Y.Z` on main, and
   `.github/workflows/release.yml` tags main if needed and publishes the GitHub release from
-  the changelog section (a `b` or `rc` version publishes a pre-release). Never push a tag,
+  the changelog section (an `a`, `b` or `rc` version publishes a pre-release). Never push a tag,
   run the workflow or create a release yourself.
 
 ## Standards
