@@ -80,3 +80,12 @@ def test_release_workflow_checks_the_version() -> None:
     workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
     assert "set_version.py --check" in workflow
     assert "set_version.py --notes" in workflow
+
+
+def test_release_workflow_can_be_run_by_hand() -> None:
+    workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
+    assert "workflow_dispatch:" in workflow
+    # The typed version reaches the shell through env, never interpolated into a script
+    assert "VERSION: ${{ inputs.version }}" in workflow
+    assert workflow.count("${{ inputs.version }}") == 1
+    assert "refs/heads/main" in workflow
