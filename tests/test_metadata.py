@@ -22,6 +22,22 @@ def test_english_translation_is_a_copy_of_strings() -> None:
     assert (PKG / "translations" / "en.json").read_bytes() == (PKG / "strings.json").read_bytes()
 
 
+def _shape(node: object, path: str = "") -> dict[str, frozenset[str]]:
+    """Map each string's key path to the {placeholders} it uses."""
+    if isinstance(node, dict):
+        out: dict[str, frozenset[str]] = {}
+        for key, value in node.items():
+            out |= _shape(value, f"{path}/{key}")
+        return out
+    return {path: frozenset(re.findall(r"\{(\w+)\}", str(node)))}
+
+
+def test_other_translations_match_strings() -> None:
+    strings = _shape(_load(PKG / "strings.json"))
+    for path in (PKG / "translations").glob("*.json"):
+        assert _shape(_load(path)) == strings, path.name
+
+
 @pytest.mark.parametrize("platform", PLATFORMS)
 def test_platforms_set_parallel_updates(platform: str) -> None:
     module = importlib.import_module(f"custom_components.waterlevel_ie.{platform}")

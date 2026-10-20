@@ -1,0 +1,223 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Cuir stáisiún tomhais leis",
+        "description": "Conas ba mhaith leat an stáisiún a aimsiú?",
+        "menu_options": {
+          "nearby": "Aimsigh stáisiúin in aice le háit",
+          "river": "Brabhsáil de réir abhann",
+          "station_number": "Iontráil uimhir stáisiúin"
+        }
+      },
+      "nearby": {
+        "title": "Aimsigh stáisiúin in aice láimhe",
+        "description": "Roghnaigh áit agus ga cuardaigh. Tosaíonn sé ag suíomh do bhaile.",
+        "data": {
+          "location": "Suíomh"
+        },
+        "data_description": {
+          "location": "Tarraing an biorán nó athraigh an ciorcal chun limistéar eile a chuardach."
+        }
+      },
+      "nearby_station": {
+        "title": "Roghnaigh stáisiún",
+        "description": "Stáisiúin tomhais sa limistéar sin, an ceann is gaire ar dtús. Ní liostaítear stáisiúin atá curtha leis cheana agat.",
+        "data": {
+          "station": "Stáisiún"
+        },
+        "data_description": {
+          "station": "An stáisiún tomhais le cur leis. Is gléas ar leith gach stáisiún."
+        }
+      },
+      "river": {
+        "title": "Roghnaigh abhainn",
+        "description": "Roghnaigh an abhainn nó an dobharcheantar a bhfuil an tomhsaire air.",
+        "data": {
+          "group": "Abhainn"
+        },
+        "data_description": {
+          "group": "An abhainn nó an dobharcheantar a bhfuil an tomhsaire air, mar a liostaítear ar waterlevel.ie é."
+        }
+      },
+      "select_station": {
+        "title": "Roghnaigh stáisiún",
+        "description": "Stáisiúin tomhais ar {river_name}. Ní liostaítear stáisiúin atá curtha leis cheana agat.",
+        "data": {
+          "station": "Stáisiún"
+        },
+        "data_description": {
+          "station": "An stáisiún tomhais le cur leis. Is gléas ar leith gach stáisiún."
+        }
+      },
+      "station_number": {
+        "title": "Iontráil uimhir stáisiúin",
+        "description": "Iontráil uimhir an stáisiúin (mar shampla {example}) nó greamaigh seoladh leathanach an stáisiúin. Is féidir leat stáisiúin a chuardach ag {stations_url}",
+        "data": {
+          "station": "Uimhir nó seoladh an stáisiúin"
+        },
+        "data_description": {
+          "station": "An uimhir atá ar leathanach waterlevel.ie an stáisiúin, nó seoladh an leathanaigh."
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Níorbh fhéidir waterlevel.ie a bhaint amach. Seiceáil do cheangal idirlín agus bain triail eile as.",
+      "invalid_station": "Ní cosúil gur uimhir stáisiúin é sin. Iontráil digití amháin, nó greamaigh seoladh leathanach an stáisiúin.",
+      "station_not_found": "Níor aimsíodh aon sonraí braiteora don stáisiún sin. Seiceáil go bhfuil sé ar waterlevel.ie.",
+      "no_stations": "Níor aimsíodh aon stáisiún ar an abhainn seo nach bhfuil curtha leis cheana agat.",
+      "no_nearby_stations": "Níor aimsíodh aon stáisiún sa limistéar sin nach bhfuil curtha leis cheana agat. Bain triail as ga níos mó.",
+      "unknown": "Earráid gan choinne. Seiceáil logaí Home Assistant."
+    },
+    "abort": {
+      "already_configured": "Tá an stáisiún seo cumraithe cheana.",
+      "cannot_load_rivers": "Níorbh fhéidir liosta na n-aibhneacha a lódáil ó waterlevel.ie. Bain triail eile as ar ball, nó cuir an stáisiún leis de réir a uimhreach."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Roghanna an stáisiúin",
+        "description": "Nuashonraíonn waterlevel.ie gach tomhsaire thart ar gach 15 nóiméad, agus iarrann an OPW gan é a cheistiú níos minice ná sin.",
+        "data": {
+          "scan_interval": "Eatramh nuashonraithe",
+          "stale_hours": "Marcáil na sonraí as dáta tar éis",
+          "alert_stage": "Cas Rabhadh Tuile air ó",
+          "redetect_sensors": "Seiceáil an stáisiún le haghaidh braiteoirí nua"
+        },
+        "data_description": {
+          "scan_interval": "Cé chomh minic a léitear sonraí nua ó waterlevel.ie. Is é 15 nóiméad an t-eatramh is giorra a cheadaítear.",
+          "stale_hours": "Nuair nach bhfuil léamh seolta ag an stáisiún le fada seo, casann Sonraí As Dáta air agus éiríonn na haonáin eile neamhfhreagrach.",
+          "alert_stage": "An chéim tuile is ísle a chasann an braiteoir dénártha Rabhadh Tuile air.",
+          "redetect_sensors": "Féachann sé cé na braiteoirí atá ag an stáisiún anois agus cuireann sé aon cheann nua leis."
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Níorbh fhéidir waterlevel.ie a bhaint amach. Seiceáil do cheangal idirlín agus bain triail eile as.",
+      "station_not_found": "Ní liostaíonn waterlevel.ie aon sonraí braiteora don stáisiún seo a thuilleadh."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "water_level": {
+        "name": "Leibhéal Uisce"
+      },
+      "backup_water_level": {
+        "name": "Leibhéal Uisce Cúltaca"
+      },
+      "water_level_od": {
+        "name": "Leibhéal Uisce OD"
+      },
+      "temperature": {
+        "name": "Teocht"
+      },
+      "battery_voltage": {
+        "name": "Voltas Ceallraí"
+      },
+      "signal_strength": {
+        "name": "Neart Comhartha"
+      },
+      "daily_mean_water_level": {
+        "name": "Meánleibhéal Uisce Laethúil"
+      },
+      "daily_min_water_level": {
+        "name": "Íosleibhéal Uisce Laethúil"
+      },
+      "daily_max_water_level": {
+        "name": "Uasleibhéal Uisce Laethúil"
+      },
+      "water_level_trend": {
+        "name": "Treocht an Leibhéil Uisce"
+      },
+      "discharge": {
+        "name": "Sceitheadh"
+      },
+      "flood_stage": {
+        "name": "Céim Tuile",
+        "state": {
+          "normal": "Gnáth",
+          "watch": "Faire",
+          "alert": "Rabhadh",
+          "serious": "Tromchúiseach"
+        },
+        "state_attributes": {
+          "watch_level_m": {
+            "name": "Leibhéal faire"
+          },
+          "alert_level_m": {
+            "name": "Leibhéal rabhaidh"
+          },
+          "serious_level_m": {
+            "name": "Leibhéal tromchúiseach"
+          },
+          "typical_level_m": {
+            "name": "Gnáthleibhéal"
+          },
+          "record_daily_mean_m": {
+            "name": "Meán laethúil is airde riamh"
+          }
+        }
+      },
+      "last_reading": {
+        "name": "Léamh Deireanach"
+      },
+      "data_age": {
+        "name": "Aois na Sonraí"
+      }
+    },
+    "binary_sensor": {
+      "flood_alert": {
+        "name": "Rabhadh Tuile"
+      },
+      "data_stale": {
+        "name": "Sonraí As Dáta",
+        "state_attributes": {
+          "last_reading": {
+            "name": "Léamh deireanach"
+          }
+        }
+      }
+    },
+    "number": {
+      "watch_level": {
+        "name": "Leibhéal Faire",
+        "state_attributes": {
+          "suggested_value": {
+            "name": "Luach molta"
+          }
+        }
+      },
+      "alert_level": {
+        "name": "Leibhéal Rabhaidh",
+        "state_attributes": {
+          "suggested_value": {
+            "name": "Luach molta"
+          }
+        }
+      },
+      "serious_level": {
+        "name": "Leibhéal Tromchúiseach",
+        "state_attributes": {
+          "suggested_value": {
+            "name": "Luach molta"
+          }
+        }
+      }
+    }
+  },
+  "selector": {
+    "alert_stage": {
+      "options": {
+        "watch": "Faire",
+        "alert": "Rabhadh",
+        "serious": "Tromchúiseach"
+      }
+    }
+  },
+  "exceptions": {
+    "update_failed": {
+      "message": "Níorbh fhéidir aon sonraí le déanaí a léamh do stáisiún {station} ó waterlevel.ie: {error}"
+    }
+  }
+}

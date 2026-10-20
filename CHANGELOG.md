@@ -2,6 +2,11 @@
 
 What each release changed, newest first.
 
+## Unreleased
+
+**Added**
+- An Irish (Gaeilge) translation. It is a first draft and corrections from fluent speakers are welcome.
+
 ## v1.2.1
 
 **Changed**
