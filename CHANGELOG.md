@@ -4,6 +4,9 @@ What each release changed, newest first.
 
 ## Unreleased
 
+**Added**
+- An Irish (Gaeilge) translation. It is a first draft and corrections from fluent speakers are welcome.
+
 **Changed**
 - The code is now strictly typed and checked with mypy in CI, which completes the Platinum tier of the Home Assistant quality scale. Nothing changes in how the integration behaves.
 
