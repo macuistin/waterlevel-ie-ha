@@ -1,7 +1,7 @@
 # Integration Quality Scale: Water Level IE
 # https://developers.home-assistant.io/docs/core/integration-quality-scale/
 # Every rule, Bronze to Platinum, is done or exempt.
-# The docs-* rules point at sections of README.md.
+# Each docs-* rule names the README.md heading that meets it (tests/test_standards.py checks).
 
 rules:
   # ── Bronze ──────────────────────────────────────────────────────────────────
@@ -17,8 +17,8 @@ rules:
   docs-actions:
     status: exempt
     comment: The integration registers no actions
-  docs-high-level-description: done
-  docs-installation-instructions: done
+  docs-high-level-description: done  # README: Water Level IE for Home Assistant
+  docs-installation-instructions: done  # README: Installation
   docs-removal-instructions: done  # README: Removing the integration
   entity-event-setup:
     status: exempt
@@ -35,8 +35,8 @@ rules:
     status: exempt
     comment: The integration registers no actions
   config-entry-unloading: done
-  docs-configuration-parameters: done  # README: the options table under Configuration
-  docs-installation-parameters: done  # README: the setup field table under Configuration
+  docs-configuration-parameters: done  # README: Configuration (the options table)
+  docs-installation-parameters: done  # README: Configuration (the setup field table)
   entity-unavailable: done     # last readings kept up to 3 h, then UpdateFailed; flood stage is unknown with no level
   integration-owner: done      # @macuistin
   log-when-unavailable: done   # the coordinator logs the outage once and the recovery once; per-sensor failures log at debug
