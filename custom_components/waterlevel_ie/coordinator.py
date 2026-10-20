@@ -104,9 +104,12 @@ def async_get_latest(hass: HomeAssistant) -> LatestReadings:
     It is shared by every config entry, so it lives in hass.data rather than in one
     entry's runtime_data.
     """
-    if DATA_LATEST not in hass.data:
-        hass.data[DATA_LATEST] = LatestReadings(WaterlevelApi(async_get_clientsession(hass)))
-    return hass.data[DATA_LATEST]
+    latest: LatestReadings | None = hass.data.get(DATA_LATEST)
+    if latest is None:
+        latest = hass.data[DATA_LATEST] = LatestReadings(
+            WaterlevelApi(async_get_clientsession(hass))
+        )
+    return latest
 
 
 class WaterlevelCoordinator(DataUpdateCoordinator[dict[str, Any]]):
@@ -136,7 +139,7 @@ class WaterlevelCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # Lowest flood stage that turns Flood Alert on
         self.alert_stage: str = entry.options.get(CONF_ALERT_STAGE, DEFAULT_ALERT_STAGE)
         # Extra per-sensor metadata (e.g. last_reported, week_min/max, trend)
-        self.sensor_attrs: dict[str, dict] = {}
+        self.sensor_attrs: dict[str, dict[str, Any]] = {}
         # Last good reading per sensor, and the last good week of water levels,
         # kept across updates so a short outage doesn't blank the sensors
         self._readings: dict[str, Reading] = {}
@@ -145,7 +148,7 @@ class WaterlevelCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # Until then an outage keeps the last good readings; after it, entities go unavailable.
         self.stale_after = timedelta(hours=entry.options.get(CONF_STALE_HOURS, DEFAULT_STALE_HOURS))
         # Daily summaries by source sensor, refreshed every SUMMARY_TTL
-        self._summaries: dict[str, dict] = {}
+        self._summaries: dict[str, dict[str, float | None]] = {}
         self._summaries_fetched: datetime | None = None
         # Only attempt the GeoJSON coordinate fetch once per session
         self._coord_fetch_attempted: bool = False
@@ -246,8 +249,8 @@ class WaterlevelCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         summary_keys = [k for k in self.available_sensors if k in SUMMARY_SENSOR_TYPES]
 
         latest = await self._latest.get(self.station)
-        if WATER_LEVEL in live_keys and (week := await self._fetch_week(WATER_LEVEL)):
-            self._week[WATER_LEVEL] = week
+        if WATER_LEVEL in live_keys and (fetched := await self._fetch_week(WATER_LEVEL)):
+            self._week[WATER_LEVEL] = fetched
         await self._refresh_summaries(summary_keys)
 
         for key in live_keys:

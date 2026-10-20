@@ -1,6 +1,6 @@
 # Integration Quality Scale: Water Level IE
 # https://developers.home-assistant.io/docs/core/integration-quality-scale/
-# Every Bronze, Silver and Gold rule is done or exempt. Platinum has todos.
+# Every rule, Bronze to Platinum, is done or exempt.
 # The docs-* rules point at sections of README.md.
 
 rules:
@@ -83,7 +83,9 @@ rules:
 
   # ── Platinum ────────────────────────────────────────────────────────────────
   async-dependency:
-    status: todo
-    comment: The waterlevel.ie client is api.py inside the integration, not yet a library on PyPI
+    status: exempt
+    comment: >-
+      There is no third-party dependency. The waterlevel.ie client is api.py inside the
+      integration, and it is asyncio throughout, on Home Assistant's shared aiohttp session
   inject-websession: done      # async_get_clientsession everywhere
-  strict-typing: todo
+  strict-typing: done          # mypy --strict in CI, configured in pyproject.toml

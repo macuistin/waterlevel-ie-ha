@@ -2,6 +2,11 @@
 
 What each release changed, newest first.
 
+## Unreleased
+
+**Changed**
+- The code is now strictly typed and checked with mypy in CI, which completes the Platinum tier of the Home Assistant quality scale. Nothing changes in how the integration behaves.
+
 ## v1.2.1
 
 **Changed**
