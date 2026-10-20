@@ -4,7 +4,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from homeassistant.components.binary_sensor import (
+# Home Assistant 2026.10 moved BinarySensorDeviceClass to binary_sensor.const without
+# listing it in __all__; the package still exposes it, and older versions only have it there.
+from homeassistant.components.binary_sensor import (  # type: ignore[attr-defined]
     BinarySensorDeviceClass,
     BinarySensorEntity,
 )

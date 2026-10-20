@@ -27,7 +27,12 @@ from homeassistant.helpers.selector import (
     TextSelectorType,
 )
 from homeassistant.util.location import distance
-import voluptuous as vol
+
+# Home Assistant 2026.10 replaced voluptuous with probatio, which has the same API.
+try:
+    import probatio as vol
+except ImportError:  # pragma: no cover - Home Assistant before 2026.10
+    import voluptuous as vol  # type: ignore[no-redef]
 
 from .api import StationNotFound, WaterlevelApi, WaterlevelError
 from .const import (
