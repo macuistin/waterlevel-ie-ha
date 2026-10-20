@@ -18,6 +18,13 @@ fail_under = 95
 show_missing = true
 skip_covered = true
 
+[tool.mypy]
+# The Platinum tier asks for strict typing. CI runs mypy on the integration.
+python_version = "3.13"
+files = ["custom_components/waterlevel_ie"]
+strict = true
+warn_unreachable = true
+
 [tool.ruff]
 line-length = 100
 target-version = "py313"

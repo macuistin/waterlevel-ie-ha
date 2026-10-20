@@ -112,7 +112,7 @@ def summary_has_daily_rows(text: str) -> bool:
     return bool(parse_summary(text))
 
 
-def parse_latest(geo: dict) -> dict[str, dict[str, Reading]]:
+def parse_latest(geo: dict[str, Any]) -> dict[str, dict[str, Reading]]:
     """Parse the latest-readings GeoJSON into {station: {sensor: Reading}}.
 
     Station numbers are normalised to 5 digits to match config entries.
@@ -125,8 +125,8 @@ def parse_latest(geo: dict) -> dict[str, dict[str, Reading]]:
         if not ref.isdigit() or not sensor:
             continue
         try:
-            value = float(props.get("value"))
-        except (TypeError, ValueError):
+            value = float(props["value"])
+        except (KeyError, TypeError, ValueError):
             continue
         if (time := parse_time(str(props.get("datetime", "")))) is None:
             continue
@@ -160,7 +160,7 @@ def parse_hydro_series(payload: object, shortname: str | None = None) -> list[Re
     return []
 
 
-def parse_latest_stations(geo: dict) -> dict[str, tuple[str, float, float]]:
+def parse_latest_stations(geo: dict[str, Any]) -> dict[str, tuple[str, float, float]]:
     """Every station in the latest-readings GeoJSON as {station: (name, lat, lon)}."""
     stations: dict[str, tuple[str, float, float]] = {}
     for feature in geo.get("features", []):
@@ -178,7 +178,7 @@ def parse_latest_stations(geo: dict) -> dict[str, tuple[str, float, float]]:
     return stations
 
 
-def find_station_coords(geo: dict, station: str) -> tuple[float, float] | None:
+def find_station_coords(geo: dict[str, Any], station: str) -> tuple[float, float] | None:
     """Return (latitude, longitude) for a station from the station GeoJSON."""
     for feature in geo.get("features", []):
         # The ref may be zero-padded to 10 digits or not; compare numerically

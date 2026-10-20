@@ -7,6 +7,7 @@ import re
 from typing import Any
 
 from homeassistant import config_entries
+from homeassistant.config_entries import ConfigFlowResult
 from homeassistant.const import CONF_LOCATION, CONF_RADIUS
 from homeassistant.core import callback
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
@@ -17,6 +18,7 @@ from homeassistant.helpers.selector import (
     NumberSelector,
     NumberSelectorConfig,
     NumberSelectorMode,
+    SelectOptionDict,
     SelectSelector,
     SelectSelectorConfig,
     SelectSelectorMode,
@@ -25,7 +27,12 @@ from homeassistant.helpers.selector import (
     TextSelectorType,
 )
 from homeassistant.util.location import distance
-import voluptuous as vol
+
+# Home Assistant 2026.10 replaced voluptuous with probatio, which has the same API.
+try:
+    import probatio as vol
+except ImportError:  # pragma: no cover - Home Assistant before 2026.10
+    import voluptuous as vol  # type: ignore[no-redef]
 
 from .api import StationNotFound, WaterlevelApi, WaterlevelError
 from .const import (
@@ -70,14 +77,16 @@ def normalize_station(raw: str) -> str | None:
     return str(int(digits)).zfill(5)
 
 
-async def _detect_station(api: WaterlevelApi, station: str, name_hint: str | None = None) -> dict:
+async def _detect_station(
+    api: WaterlevelApi, station: str, name_hint: str | None = None
+) -> dict[str, Any]:
     """Probe a station and build its config entry data.
 
     name_hint: preferred display name (e.g. from the river group picker).
     Falls back to the station page title, then to 'Station {station}'.
     """
     page_name, available = await api.detect_station(station)
-    result = {
+    result: dict[str, Any] = {
         CONF_STATION: station,
         CONF_STATION_NAME: name_hint or page_name or f"Station {station}",
         CONF_AVAILABLE_SENSORS: available,
@@ -105,13 +114,13 @@ class WaterlevelConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self._stations: dict[str, str] = {}
         self._distances: dict[str, float] = {}
 
-    async def async_step_user(self, user_input: dict[str, Any] | None = None):
+    async def async_step_user(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """Ask whether to find stations nearby, browse by river, or type a station number."""
         return self.async_show_menu(
             step_id="user", menu_options=["nearby", "river", "station_number"]
         )
 
-    async def async_step_nearby(self, user_input: dict[str, Any] | None = None):
+    async def async_step_nearby(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """Pick a location and radius (the home location by default)."""
         errors: dict[str, str] = {}
         if user_input is not None:
@@ -153,7 +162,9 @@ class WaterlevelConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             errors=errors,
         )
 
-    async def async_step_nearby_station(self, user_input: dict[str, Any] | None = None):
+    async def async_step_nearby_station(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
         """Pick one of the stations found nearby, closest first."""
         errors: dict[str, str] = {}
         if user_input is not None:
@@ -170,11 +181,10 @@ class WaterlevelConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     vol.Required(CONF_STATION): SelectSelector(
                         SelectSelectorConfig(
                             options=[
-                                {
-                                    "value": sid,
-                                    "label": f"{name} ({sid}), "
-                                    f"{self._distances[sid] / 1000:.1f} km",
-                                }
+                                SelectOptionDict(
+                                    value=sid,
+                                    label=f"{name} ({sid}), {self._distances[sid] / 1000:.1f} km",
+                                )
                                 for sid, name in self._stations.items()
                             ],
                             mode=SelectSelectorMode.DROPDOWN,
@@ -185,7 +195,7 @@ class WaterlevelConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             errors=errors,
         )
 
-    async def async_step_river(self, user_input: dict[str, Any] | None = None):
+    async def async_step_river(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """Pick a river, then load its stations."""
         errors: dict[str, str] = {}
         api = WaterlevelApi(async_get_clientsession(self.hass))
@@ -223,7 +233,8 @@ class WaterlevelConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     vol.Required(CONF_GROUP): SelectSelector(
                         SelectSelectorConfig(
                             options=[
-                                {"value": gid, "label": name} for gid, name in self._groups.items()
+                                SelectOptionDict(value=gid, label=name)
+                                for gid, name in self._groups.items()
                             ],
                             mode=SelectSelectorMode.DROPDOWN,
                         )
@@ -233,7 +244,9 @@ class WaterlevelConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             errors=errors,
         )
 
-    async def async_step_select_station(self, user_input: dict[str, Any] | None = None):
+    async def async_step_select_station(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
         """Pick a station on the chosen river."""
         errors: dict[str, str] = {}
         if user_input is not None:
@@ -250,7 +263,7 @@ class WaterlevelConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     vol.Required(CONF_STATION): SelectSelector(
                         SelectSelectorConfig(
                             options=[
-                                {"value": sid, "label": f"{name} ({sid})"}
+                                SelectOptionDict(value=sid, label=f"{name} ({sid})")
                                 for sid, name in self._stations.items()
                             ],
                             mode=SelectSelectorMode.DROPDOWN,
@@ -264,7 +277,9 @@ class WaterlevelConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             },
         )
 
-    async def async_step_station_number(self, user_input: dict[str, Any] | None = None):
+    async def async_step_station_number(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
         """Enter a station number (or paste a station URL) directly."""
         errors: dict[str, str] = {}
         if user_input is not None:
@@ -295,7 +310,7 @@ class WaterlevelConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def _async_add_station(
         self, station: str, errors: dict[str, str], name_hint: str | None = None
-    ):
+    ) -> ConfigFlowResult | None:
         """Probe the station and create the entry; on failure fill errors and return None."""
         await self.async_set_unique_id(f"{DOMAIN}_{station}")
         self._abort_if_unique_id_configured()
@@ -318,7 +333,7 @@ class WaterlevelConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 class WaterlevelOptionsFlow(config_entries.OptionsFlow):
     """Change how often a station updates and when it counts as stale."""
 
-    async def async_step_init(self, user_input: dict[str, Any] | None = None):
+    async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         errors: dict[str, str] = {}
         if user_input is not None:
             options = {
@@ -344,14 +359,14 @@ class WaterlevelOptionsFlow(config_entries.OptionsFlow):
             if not errors:
                 # Saving reloads the station, which picks up the settings and any new sensors
                 return self.async_create_entry(data=options)
-        options = self.config_entry.options
+        saved = self.config_entry.options
         return self.async_show_form(
             step_id="init",
             data_schema=vol.Schema(
                 {
                     vol.Required(
                         CONF_SCAN_INTERVAL,
-                        default=options.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL),
+                        default=saved.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL),
                     ): NumberSelector(
                         NumberSelectorConfig(
                             min=MIN_SCAN_INTERVAL,
@@ -363,7 +378,7 @@ class WaterlevelOptionsFlow(config_entries.OptionsFlow):
                     ),
                     vol.Required(
                         CONF_STALE_HOURS,
-                        default=options.get(CONF_STALE_HOURS, DEFAULT_STALE_HOURS),
+                        default=saved.get(CONF_STALE_HOURS, DEFAULT_STALE_HOURS),
                     ): NumberSelector(
                         NumberSelectorConfig(
                             min=1,
@@ -375,7 +390,7 @@ class WaterlevelOptionsFlow(config_entries.OptionsFlow):
                     ),
                     vol.Required(
                         CONF_ALERT_STAGE,
-                        default=options.get(CONF_ALERT_STAGE, DEFAULT_ALERT_STAGE),
+                        default=saved.get(CONF_ALERT_STAGE, DEFAULT_ALERT_STAGE),
                     ): SelectSelector(
                         SelectSelectorConfig(
                             options=[stage for stage in FLOOD_STAGES if stage != "normal"],

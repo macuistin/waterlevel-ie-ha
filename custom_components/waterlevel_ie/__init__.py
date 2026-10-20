@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryNotReady
@@ -37,7 +39,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: WaterlevelConfigEntry) -
     return True
 
 
-def _reload_key(entry: WaterlevelConfigEntry) -> tuple:
+def _reload_key(entry: WaterlevelConfigEntry) -> tuple[dict[str, Any], tuple[str, ...]]:
     return (dict(entry.options), tuple(entry.data.get(CONF_AVAILABLE_SENSORS, [])))
 
 

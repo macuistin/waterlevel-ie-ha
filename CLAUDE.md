@@ -9,7 +9,8 @@ data published on waterlevel.ie. It is unofficial: never present it as made or e
 waterlevel.ie or the OPW, and never copy their logos. The display name is "Water Level IE";
 the domain is `waterlevel_ie`.
 
-It targets the Gold tier of the Home Assistant quality scale.
+It targets the Platinum tier of the Home Assistant quality scale, which includes strict typing
+(`mypy`, configured in `pyproject.toml`).
 `custom_components/waterlevel_ie/quality_scale.yaml` lists each rule as done, exempt or
 todo. Keep it true: update it in the same PR as the change, and don't claim a rule the code
 doesn't meet.
@@ -63,6 +64,7 @@ doesn't meet.
 ```bash
 pip install -r requirements_test.txt
 ruff check . && ruff format --check .
+mypy
 pytest --cov
 ```
 
