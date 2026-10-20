@@ -89,3 +89,10 @@ def test_release_workflow_can_be_run_by_hand() -> None:
     assert "VERSION: ${{ inputs.version }}" in workflow
     assert workflow.count("${{ inputs.version }}") == 1
     assert "refs/heads/main" in workflow
+
+
+def test_every_pre_release_version_publishes_a_pre_release() -> None:
+    workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
+    # set_version.py accepts a, b and rc versions; each must be marked a pre-release
+    assert "(?:a|b|rc)" in set_version.VERSION
+    assert '=~ (a|b|rc)[0-9]+$ ]]; then prerelease="--prerelease"' in workflow
