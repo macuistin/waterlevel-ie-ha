@@ -2,7 +2,9 @@
 
 What each release changed, newest first.
 
-## Unreleased
+## v1.3.0
+
+Adds a draft Irish (Gaeilge) translation and completes the Platinum tier of the Home Assistant quality scale with strict typing. Nothing changes in how the integration behaves, and there is nothing to do when upgrading.
 
 **Added**
 - An Irish (Gaeilge) translation. It is a first draft and corrections from fluent speakers are welcome.
