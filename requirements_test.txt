@@ -3,5 +3,5 @@
 # .github/workflows/tests.yml.
 pytest-homeassistant-custom-component
 pytest-cov
-ruff>=0.17.1,<0.18
+ruff>=0.17.2,<0.18
 mypy
