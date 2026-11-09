@@ -193,7 +193,10 @@ async def test_other_sensors_use_today_without_week(
     data = await coordinator._async_update_data()
 
     assert data == {"0002": 9.1}
-    assert coordinator.sensor_attrs["0002"] == {"last_reported": "2026-10-19T17:45:00+00:00"}
+    assert coordinator.sensor_attrs["0002"] == {
+        "last_reported": "2026-10-19T17:45:00+00:00",
+        "stale": False,
+    }
     # Today's CSV, the shared latest-readings feed and the one-off coordinate lookup
     assert aioclient_mock.call_count == 3
 
@@ -210,4 +213,7 @@ async def test_timeouts_on_extra_files_keep_the_live_reading(
     data = await coordinator._async_update_data()
 
     assert data == {"0001": 1.3, "0001_daily_mean": None}
-    assert coordinator.sensor_attrs["0001"] == {"last_reported": "2026-10-19T18:00:00+00:00"}
+    assert coordinator.sensor_attrs["0001"] == {
+        "last_reported": "2026-10-19T18:00:00+00:00",
+        "stale": False,
+    }

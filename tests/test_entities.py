@@ -183,37 +183,45 @@ async def test_short_outage_keeps_last_readings(
     assert hass.states.get("binary_sensor.graiguenamanagh_data_stale").state == "off"
 
 
-async def test_long_outage_makes_entities_unavailable(
+async def test_long_outage_keeps_last_values_and_flags_them_stale(
     hass: HomeAssistant, aioclient_mock: AiohttpClientMocker, frozen_now
 ) -> None:
     _mock_readings(aioclient_mock)
     entry = await _setup(hass)
+    assert hass.states.get("sensor.graiguenamanagh_water_level").attributes["stale"] is False
 
     _mock_outage(aioclient_mock)
     frozen_now.tick(timedelta(hours=4))
     await entry.runtime_data.async_refresh()
     await hass.async_block_till_done()
 
-    # An outage must not read as "all clear"
+    # The last known values stay, with when they were taken and that they are old
+    level = hass.states.get("sensor.graiguenamanagh_water_level")
+    assert level.state == "1.42"
+    assert level.attributes["last_reported"] == "2026-10-19T18:00:00+00:00"
+    assert level.attributes["stale"] is True
     for entity_id in (
-        "sensor.graiguenamanagh_water_level",
         "sensor.graiguenamanagh_flood_stage",
         "binary_sensor.graiguenamanagh_flood_alert",
     ):
-        assert hass.states.get(entity_id).state == STATE_UNAVAILABLE, entity_id
-    # Thresholds are local settings and stay editable
+        state = hass.states.get(entity_id)
+        assert state.state != STATE_UNAVAILABLE, entity_id
+        assert state.attributes["last_reported"] == "2026-10-19T18:00:00+00:00"
+        assert state.attributes["stale"] is True
     assert hass.states.get("number.graiguenamanagh_watch_level").state == "1.5"
-    # The freshness entities say what's wrong
+    # The freshness entities say how old it is
     assert hass.states.get("binary_sensor.graiguenamanagh_data_stale").state == "on"
     assert hass.states.get("sensor.graiguenamanagh_data_age").state == "270"
-    message = str(entry.runtime_data.last_exception)
-    assert "Could not read any recent data for station 14029" in message
-    assert "no reading newer than 3 hours" in message
+    assert hass.states.get("sensor.graiguenamanagh_last_reading").state == (
+        "2026-10-19T18:00:00+00:00"
+    )
 
     _mock_readings(aioclient_mock, time="2026-10-19T22:15:00Z")
     await entry.runtime_data.async_refresh()
     await hass.async_block_till_done()
-    assert hass.states.get("sensor.graiguenamanagh_water_level").state == "1.42"
+    level = hass.states.get("sensor.graiguenamanagh_water_level")
+    assert level.state == "1.42"
+    assert level.attributes["stale"] is False
     assert hass.states.get("binary_sensor.graiguenamanagh_data_stale").state == "off"
 
 

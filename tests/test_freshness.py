@@ -7,7 +7,6 @@ from datetime import timedelta
 import aiohttp
 from freezegun.api import FrozenDateTimeFactory
 from homeassistant.config_entries import ConfigEntryState
-from homeassistant.const import STATE_UNAVAILABLE
 from homeassistant.core import HomeAssistant
 import pytest
 from pytest_homeassistant_custom_component.test_util.aiohttp import AiohttpClientMocker
@@ -69,7 +68,9 @@ async def test_station_with_only_old_data_sets_up_as_stale(
 
     # It still sets up, so the freshness entities can say the gauge has gone quiet
     assert entry.state is ConfigEntryState.LOADED
-    assert hass.states.get("sensor.graiguenamanagh_temperature").state == STATE_UNAVAILABLE
+    temperature = hass.states.get("sensor.graiguenamanagh_temperature")
+    assert temperature.state == "9.0"
+    assert temperature.attributes["stale"] is True
     assert hass.states.get("binary_sensor.graiguenamanagh_data_stale").state == "on"
     last = hass.states.get("sensor.graiguenamanagh_last_reading")
     assert last.state == "2026-10-18T18:00:00+00:00"

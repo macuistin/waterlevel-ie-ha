@@ -197,11 +197,15 @@ class FloodStageSensor(WaterlevelEntity, SensorEntity):
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
-        attrs: dict[str, Any] = {
-            f"{key}_level_m": value
-            for key in THRESHOLD_ENTITIES
-            if (value := self.coordinator.get_threshold(key)) is not None
-        }
+        # When the level this stage comes from was reported, and whether it is old
+        attrs: dict[str, Any] = dict(self.coordinator.sensor_attrs.get(WATER_LEVEL, {}))
+        attrs.update(
+            {
+                f"{key}_level_m": value
+                for key in THRESHOLD_ENTITIES
+                if (value := self.coordinator.get_threshold(key)) is not None
+            }
+        )
         suggested = self.coordinator.suggested or {}
         if "typical" in suggested:
             attrs["typical_level_m"] = suggested["typical"]

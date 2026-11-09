@@ -2,6 +2,14 @@
 
 What each release changed, newest first.
 
+## Unreleased
+
+**Fixes**
+- Sensors no longer go unavailable when a station stops reporting. They keep the last known value however long the outage lasts. Each reading has a `last_reported` attribute and a new `stale` attribute (true once it is older than the stale option), and Flood Stage and Flood Alert carry the same two attributes for the water level they use. Last Reading (the existing timestamp entity) and Data Age show when the station last reported.
+
+**Upgrading**
+- Entities used to become unavailable after 3 hours without a reading; they now keep showing the last value. An automation that triggered on `unavailable` should trigger on Data Stale turning on, or check the `stale` attribute, instead. Flood Alert can stay on or off from an old reading during a long outage, so check `stale` if that matters.
+
 ## v1.3.0
 
 Adds a draft Irish (Gaeilge) translation and completes the Platinum tier of the Home Assistant quality scale with strict typing. Nothing changes in how the integration behaves, and there is nothing to do when upgrading.
