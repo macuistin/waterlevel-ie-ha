@@ -54,7 +54,11 @@ class FloodAlertBinarySensor(WaterlevelEntity, BinarySensorEntity):
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
-        return self._location_attributes()
+        """Return when the water level was reported and whether it is stale, and the location."""
+        return {
+            **self.coordinator.sensor_attrs.get(WATER_LEVEL, {}),
+            **self._location_attributes(),
+        }
 
 
 class DataStaleBinarySensor(WaterlevelEntity, BinarySensorEntity):

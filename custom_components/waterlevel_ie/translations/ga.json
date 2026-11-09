@@ -87,7 +87,7 @@
         },
         "data_description": {
           "scan_interval": "Cé chomh minic a léitear sonraí nua ó waterlevel.ie. Is é 15 nóiméad an t-eatramh is giorra a cheadaítear.",
-          "stale_hours": "Nuair nach bhfuil léamh seolta ag an stáisiún le fada seo, casann Sonraí As Dáta air agus éiríonn na haonáin eile neamhfhreagrach.",
+          "stale_hours": "Nuair nach bhfuil léamh seolta ag an stáisiún le fada seo, casann Sonraí As Dáta air. Coinníonn na haonáin eile an léamh deireanach, agus tréith stale leis.",
           "alert_stage": "An chéim tuile is ísle a chasann an braiteoir dénártha Rabhadh Tuile air.",
           "redetect_sensors": "Féachann sé cé na braiteoirí atá ag an stáisiún anois agus cuireann sé aon cheann nua leis."
         }

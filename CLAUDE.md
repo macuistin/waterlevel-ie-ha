@@ -81,12 +81,13 @@ reason. Checks in brackets are tests in `tests/test_standards.py` unless named o
 
 - Every platform sets `PARALLEL_UPDATES` [`test_platforms_set_parallel_updates` in
   `tests/test_metadata.py`].
-- The coordinator keeps each sensor's last good reading through an outage and raises
-  `UpdateFailed` (entities unavailable) only once the newest reading is older than
-  `stale_after`. The freshness entities (Last Reading, Data Age, Data Stale) stay
-  available. Per-sensor failures log at debug, so an outage logs once and the recovery once.
-  Setup retries only when the station can't be read at all; a station with only old readings
-  sets up stale.
+- The coordinator keeps each sensor's last good reading through an outage, however long, and
+  never hides it: entities stay available and show the last value. A reading older than
+  `stale_after` is flagged by its `stale` attribute (with `last_reported`) and by Data Stale,
+  Last Reading and Data Age, which stay available. `UpdateFailed` (entities unavailable) is
+  only for a station nothing has ever been read from. Per-sensor failures log at debug, so an
+  outage logs once and the recovery once. Setup retries only when the station can't be read
+  at all; a station with only old readings sets up stale.
 - Unloading an entry unloads every platform, and anything an entry starts is stopped on unload.
 - Every setup field and option is a row in the README's Configuration tables, by its English
   label [`test_readme_documents_every_setup_field_and_option`].
