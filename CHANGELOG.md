@@ -2,6 +2,11 @@
 
 What each release changed, newest first.
 
+## Unreleased
+
+**Changed**
+- `hacs.json` now sets `country` to `IE`, as HACS asks of repositories limited to one country, ahead of listing in the HACS default repositories.
+
 ## v1.5.0
 
 Stations now start with flood thresholds taken from their OPW alarm levels, so you don't have to research them, and a new Station Information diagnostic sensor shows where the defaults came from. Thresholds you have set are kept.

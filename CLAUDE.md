@@ -130,7 +130,7 @@ reason. Checks in brackets are tests in `tests/test_standards.py` unless named o
 - The HACS action, hassfest and the tests run on every pull request and must pass; never
   skip or weaken them [`test_validation_runs_on_every_pull_request`].
 - `manifest.json` keeps `domain`, `name`, `documentation`, `issue_tracker`, `codeowners`
-  and `version`, and `hacs.json` keeps the same `name` and the minimum Home Assistant
+  and `version`, and `hacs.json` keeps the same `name`, `country` (`IE`, as waterlevel.ie covers Ireland only) and the minimum Home Assistant
   [`test_hacs_manifest_keys`].
 - `waterlevel_ie` stays the only integration under `custom_components/`
   [`test_one_integration_in_the_repo`].
