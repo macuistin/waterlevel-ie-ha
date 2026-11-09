@@ -164,6 +164,34 @@
       },
       "data_age": {
         "name": "Aois na Sonraí"
+      },
+      "station_info": {
+        "name": "Eolas na Stáisiún",
+        "state": {
+          "alarm_levels": "Leibhéil rabhaidh",
+          "history": "Stair an stáisiúin",
+          "fallback": "Luachanna cúltaca"
+        },
+        "state_attributes": {
+          "exceeded_1_percent_level_m": {
+            "name": "Leibhéal a sháraítear 1% den am"
+          },
+          "median_annual_maximum_m": {
+            "name": "Uasmhéid bliantúil airmheánach"
+          },
+          "highest_annual_maximum_m": {
+            "name": "Uasmhéid bliantúil is airde"
+          },
+          "default_watch_level_m": {
+            "name": "Leibhéal faire réamhshocraithe"
+          },
+          "default_alert_level_m": {
+            "name": "Leibhéal rabhaidh réamhshocraithe"
+          },
+          "default_serious_level_m": {
+            "name": "Leibhéal tromchúiseach réamhshocraithe"
+          }
+        }
       }
     },
     "binary_sensor": {

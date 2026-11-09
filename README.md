@@ -56,6 +56,7 @@ Each gauge station becomes a **device** in Home Assistant with all its sensors, 
 | Daily Mean Water Level | m | Rolling daily mean from the OPW summary CSV |
 | Daily Min Water Level | m | Rolling daily minimum |
 | Daily Max Water Level | m | Rolling daily maximum |
+| Station Information | — | Diagnostic: where the default thresholds came from (`alarm_levels`, `history` or `fallback`), with the station's details, alarm levels and default levels as attributes |
 | Flood Stage | — | Current flood stage: `normal`, `watch`, `alert`, or `serious` |
 | Water Level Trend | m/h | How fast the level is rising (positive) or falling (negative), fitted over the last 3 hours of readings |
 | Discharge | m³/s | River flow, from [OPW Hydro-Data](https://waterlevel.ie/hydro-data/). Only at stations where the OPW still reports flow |
@@ -104,6 +105,18 @@ OPW Hydro-Data also publishes a metadata file and a set of reference levels for 
 | `highest_annual_maximum_m` | The highest yearly maximum on record |
 
 Hydro-Data gives its levels on an absolute datum, so the two levels are shifted onto the staff gauge, the same way as the threshold suggestions, and are in the same units as Water Level. They are left out if the station's readings can't be lined up. Fields Hydro-Data leaves empty are left out too. These are statistics from the OPW's record, not flood warnings.
+
+### Default thresholds from alarm levels
+
+You shouldn't have to research your river's flood levels. OPW publishes alarm levels for most stations, and the integration uses them as the starting Watch, Alert and Serious thresholds, shifted onto the staff gauge like the other levels:
+
+| Threshold | Default |
+|---|---|
+| Watch | The level exceeded 1% of the time (about bankfull) |
+| Alert | The median of the station's yearly highest levels, a typical big flood |
+| Serious | The highest yearly maximum on record |
+
+OPW does not publish levels named alert or warning, so this mapping is the integration's own choice. At Graiguenamanagh on the Barrow it gives about 1.40, 1.47 and 2.52 m, where OPW's notes put bankfull at 1.4 m and the record flow at 2.52 m. A threshold you set yourself always wins. A station needs all three alarm levels to use them; otherwise it uses the suggestions from its daily record (see Number Entities), and failing that the fallback values. The **Station Information** diagnostic sensor shows which: its state is `alarm_levels`, `history` or `fallback`, and its attributes hold the station details, the alarm levels and the `default_watch_level_m`, `default_alert_level_m` and `default_serious_level_m`. Existing stations keep the thresholds they already have. These are statistics, not flood warnings.
 
 ### Map Support
 

@@ -2,6 +2,20 @@
 
 What each release changed, newest first.
 
+## v1.5.0
+
+Stations now start with flood thresholds taken from their OPW alarm levels, so you don't have to research them, and a new Station Information diagnostic sensor shows where the defaults came from. Thresholds you have set are kept.
+
+**Added**
+- Default flood thresholds from each station's OPW alarm levels: Watch is the level exceeded 1% of the time, Alert the median yearly highest level and Serious the highest yearly maximum on record. See [Default thresholds from alarm levels](README.md#default-thresholds-from-alarm-levels).
+- A **Station Information** diagnostic sensor showing where the defaults came from (`alarm_levels`, `history` or `fallback`), the station's details, its alarm levels and the default levels. Downloaded diagnostics include them too.
+
+**Changed**
+- Alarm levels now take priority over the thresholds suggested from the station's daily record, which are used when a station has no alarm levels.
+
+**Upgrading**
+- Thresholds you have set, and ones Home Assistant restored from before, are kept. A station whose thresholds you never changed may move to its alarm levels the next time it is set up fresh.
+
 ## v1.4.0
 
 Sensors now keep showing their last reading when a station stops reporting, instead of going unavailable, and Flood Stage shows more about each station from OPW Hydro-Data. Read the first Upgrading note if an automation triggers on `unavailable`.

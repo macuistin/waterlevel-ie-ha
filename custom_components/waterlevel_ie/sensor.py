@@ -121,6 +121,17 @@ FLOOD_STAGE_DESCRIPTION = SensorEntityDescription(
     options=FLOOD_STAGES,
 )
 
+# Where the default thresholds came from, best source first
+STATION_INFO_SOURCES = ["alarm_levels", "history", "fallback"]
+
+STATION_INFO_DESCRIPTION = SensorEntityDescription(
+    key="station_info",
+    translation_key="station_info",
+    device_class=SensorDeviceClass.ENUM,
+    options=STATION_INFO_SOURCES,
+    entity_category=EntityCategory.DIAGNOSTIC,
+)
+
 LAST_READING_DESCRIPTION = SensorEntityDescription(
     key="last_reading",
     translation_key="last_reading",
@@ -151,6 +162,7 @@ async def async_setup_entry(
     if WATER_LEVEL in coordinator.available_sensors:
         entities += [
             FloodStageSensor(coordinator),
+            StationInfoSensor(coordinator),
             WaterlevelSensor(coordinator, TREND_RATE_DESCRIPTION),
         ]
     if any(key in SENSOR_TYPES for key in coordinator.available_sensors):
@@ -217,6 +229,49 @@ class FloodStageSensor(WaterlevelEntity, SensorEntity):
         if "annual_max_highest" in info.get("levels", {}):
             attrs["highest_annual_maximum_m"] = info["levels"]["annual_max_highest"]
         attrs.update(self._location_attributes())
+        return attrs
+
+
+class StationInfoSensor(WaterlevelEntity, SensorEntity):
+    """What is known about the station, and where its default flood thresholds come from.
+
+    The state is the source of the defaults: the station's OPW alarm levels, its daily
+    record, or the fixed fallback values. The attributes hold the station details, its
+    reference levels and the three default levels.
+    """
+
+    entity_description = STATION_INFO_DESCRIPTION
+
+    def __init__(self, coordinator: WaterlevelCoordinator) -> None:
+        super().__init__(coordinator, "station_info")
+
+    @property
+    def available(self) -> bool:
+        """Local state only, so it stays usable while the station is down."""
+        return True
+
+    @property
+    def native_value(self) -> str:
+        return self.coordinator.default_thresholds()[1]
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        coordinator = self.coordinator
+        info = coordinator.station_info or {}
+        levels = info.get("levels", {})
+        attrs: dict[str, Any] = dict(info.get("details", {}))
+        if "p01" in levels:
+            attrs["exceeded_1_percent_level_m"] = levels["p01"]
+        if "annual_max_median" in levels:
+            attrs["median_annual_maximum_m"] = levels["annual_max_median"]
+        if "annual_max_highest" in levels:
+            attrs["highest_annual_maximum_m"] = levels["annual_max_highest"]
+        attrs.update(
+            {
+                f"default_{key}_level_m": value
+                for key, value in coordinator.default_thresholds()[0].items()
+            }
+        )
         return attrs
 
 

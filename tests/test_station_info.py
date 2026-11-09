@@ -7,6 +7,7 @@ from pytest_homeassistant_custom_component.test_util.aiohttp import AiohttpClien
 
 from custom_components.waterlevel_ie.api import parse_alarm_levels, parse_station_info
 from custom_components.waterlevel_ie.const import LATEST_GEOJSON_URL
+from custom_components.waterlevel_ie.thresholds import alarm_thresholds
 
 from .test_init import HYDRO_URL, LATEST, _entry, _mock_station
 from .test_thresholds import HYDRO_WEEK, INDEX_URL, WEEK_CSV, WEEK_URL, YEAR_URL
@@ -151,3 +152,72 @@ async def test_details_unreachable_are_retried_next_setup(
     await hass.async_block_till_done()
 
     assert "station_info" not in entry.data
+
+
+def test_alarm_thresholds() -> None:
+    levels = {"p01": 1.4, "annual_max_median": 1.47, "annual_max_highest": 2.52, "p05": 1.0}
+    assert alarm_thresholds(levels) == {"watch": 1.4, "alert": 1.47, "serious": 2.52}
+    # Out-of-order levels are put in order
+    assert alarm_thresholds({"p01": 2.0, "annual_max_median": 1.0, "annual_max_highest": 1.5}) == {
+        "watch": 2.0,
+        "alert": 2.0,
+        "serious": 2.0,
+    }
+    # A station missing any of the three gets none
+    assert alarm_thresholds({"p01": 1.4, "annual_max_median": 1.47}) is None
+    assert alarm_thresholds({}) is None
+
+
+async def test_alarm_levels_set_the_default_thresholds(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
+) -> None:
+    _mock_info(aioclient_mock)
+    entry = _entry(hass, sensors=["0001"])
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    for stage, expected in (("watch", 1.5), ("alert", 2.5), ("serious", 3.25)):
+        assert hass.states.get(f"number.graiguenamanagh_{stage}_level").state == str(expected)
+    info = hass.states.get("sensor.graiguenamanagh_station_information")
+    assert info.state == "alarm_levels"
+    assert info.attributes["catchment"] == "BARROW"
+    assert info.attributes["exceeded_1_percent_level_m"] == 1.5
+    assert info.attributes["median_annual_maximum_m"] == 2.5
+    assert info.attributes["highest_annual_maximum_m"] == 3.25
+    assert info.attributes["default_watch_level_m"] == 1.5
+    assert info.attributes["default_serious_level_m"] == 3.25
+    assert info.attributes["default_alert_level_m"] == 2.5
+
+
+async def test_a_threshold_the_user_set_beats_the_alarm_levels(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
+) -> None:
+    _mock_info(aioclient_mock)
+    entry = _entry(hass, sensors=["0001"])
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    coordinator = entry.runtime_data
+
+    coordinator.set_threshold("alert", 2.0)
+    coordinator.station_info = None  # looked up again, as on a first setup
+    await coordinator.async_load_station_info()
+    assert coordinator.get_threshold("alert") == 2.0
+    assert coordinator.get_threshold("watch") == 1.5
+
+
+async def test_fallback_is_reported_without_alarm_levels(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
+) -> None:
+    _mock_station(aioclient_mock)
+    aioclient_mock.get(LATEST_GEOJSON_URL, json=LATEST)
+    entry = _entry(hass, sensors=["0001"])
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    info = hass.states.get("sensor.graiguenamanagh_station_information")
+    assert info.state == "fallback"
+    assert info.attributes["default_watch_level_m"] == 1.5
+    assert info.attributes["default_alert_level_m"] == 2.5
+    assert info.attributes["default_serious_level_m"] == 3.5
+    assert "median_annual_maximum_m" not in info.attributes
+    assert entry.runtime_data.default_thresholds()[1] == "fallback"

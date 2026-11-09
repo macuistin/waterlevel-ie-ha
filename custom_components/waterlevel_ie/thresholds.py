@@ -21,6 +21,25 @@ MIN_DAYS = 365
 MIN_MATCHES = 4
 
 
+def alarm_thresholds(levels: dict[str, float]) -> dict[str, float] | None:
+    """Watch / alert / serious levels from a station's OPW alarm levels, in staff units.
+
+    watch is the level exceeded 1% of the time (about bankfull), alert the median of
+    the yearly highest levels (a typical big flood) and serious the highest yearly
+    maximum on record. Returns None unless the station has all three, so a partial
+    file never gives a lopsided set.
+    """
+    try:
+        watch = levels["p01"]
+        alert = levels["annual_max_median"]
+        serious = levels["annual_max_highest"]
+    except KeyError:
+        return None
+    # Keep the stages in order
+    alert = max(alert, watch)
+    return {"watch": watch, "alert": alert, "serious": max(serious, alert)}
+
+
 def datum_offset(staff: list[Reading], absolute: list[Reading]) -> float | None:
     """Median difference between staff-gauge and absolute readings at the same times."""
     by_time = {r.time: r.value for r in absolute}
