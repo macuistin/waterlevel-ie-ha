@@ -21,8 +21,10 @@ from .const import (
     GEOJSON_URL,
     GROUP_LIST_URL,
     GROUP_URL,
+    HYDRO_ALARM_URL,
     HYDRO_SENSOR_TYPES,
     HYDRO_SERIES_URL,
+    HYDRO_STATION_URL,
     LATEST_GEOJSON_URL,
     SENSOR_TYPES,
     STATION_PAGE_URL,
@@ -160,6 +162,62 @@ def parse_hydro_series(payload: object, shortname: str | None = None) -> list[Re
     return []
 
 
+# Hydro-Data alarm-level series, by the name of the level they hold. The percentiles
+# are exceedance levels: "p05" is the level exceeded 5% of the time.
+ALARM_SERIES = {
+    "WEB.Percentile-50": "p50",
+    "WEB.Percentile-25": "p25",
+    "WEB.Percentile-10": "p10",
+    "WEB.Percentile-05": "p05",
+    "WEB.Percentile-01": "p01",
+    "WEB.YearHyd.Amax(median)": "annual_max_median",
+    "WEB.YearHyd.Amax(highest)": "annual_max_highest",
+}
+
+
+def parse_alarm_levels(payload: object) -> dict[str, float]:
+    """Parse a Hydro-Data alarmlevel file into {level name: value}, newest value of each.
+
+    Only the series named in ALARM_SERIES are kept. The values are on the same
+    absolute datum as the station's Hydro-Data readings.
+    """
+    levels: dict[str, float] = {}
+    for series in payload if isinstance(payload, list) else []:
+        if not isinstance(series, dict) or series.get("ts_shortname") not in ALARM_SERIES:
+            continue
+        if readings := parse_hydro_series([series]):
+            levels[ALARM_SERIES[series["ts_shortname"]]] = readings[-1].value
+    return levels
+
+
+def _number(raw: object) -> float | None:
+    """The leading number in a metadata value such as "113.00 km²", or None."""
+    if match := re.match(r"\s*(-?\d+(?:\.\d+)?)", str(raw or "")):
+        return float(match.group(1))
+    return None
+
+
+def parse_station_info(payload: object) -> dict[str, str | float]:
+    """Parse a Hydro-Data station index.json into the details worth showing.
+
+    Missing or empty fields are left out.
+    """
+    if not isinstance(payload, dict):
+        return {}
+    info: dict[str, str | float] = {}
+    for key, field in (
+        ("status", "station_status"),
+        ("catchment", "catchment_name"),
+        ("river_basin_district", "RBD"),
+        ("station_class", "Stn_Class"),
+    ):
+        if value := str(payload.get(field) or "").strip():
+            info[key] = value
+    if (area := _number(payload.get("CATCHMENT_SIZE"))) is not None:
+        info["catchment_area_km2"] = area
+    return info
+
+
 def parse_latest_stations(geo: dict[str, Any]) -> dict[str, tuple[str, float, float]]:
     """Every station in the latest-readings GeoJSON as {station: (name, lat, lon)}."""
     stations: dict[str, tuple[str, float, float]] = {}
@@ -277,6 +335,15 @@ class WaterlevelApi:
         """Readings from OPW Hydro-Data: param "S" (level, absolute) or "Q" (flow)."""
         url = HYDRO_SERIES_URL.format(station=station, param=param, period=period)
         return parse_hydro_series(await self._get_json(url), shortname)
+
+    async def station_info(self, station: str) -> dict[str, str | float]:
+        """The station's details from Hydro-Data (catchment, status and so on)."""
+        return parse_station_info(await self._get_json(HYDRO_STATION_URL.format(station=station)))
+
+    async def alarm_levels(self, station: str, param: str = "S") -> dict[str, float]:
+        """The station's reference levels from Hydro-Data, on its absolute datum."""
+        url = HYDRO_ALARM_URL.format(station=station, param=param)
+        return parse_alarm_levels(await self._get_json(url))
 
     async def latest(self) -> dict[str, dict[str, Reading]]:
         """Latest reading of every sensor on every station (one shared file)."""

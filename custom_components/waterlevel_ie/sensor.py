@@ -206,6 +206,12 @@ class FloodStageSensor(WaterlevelEntity, SensorEntity):
         if "typical" in suggested:
             attrs["typical_level_m"] = suggested["typical"]
             attrs["record_daily_mean_m"] = suggested["record"]
+        info = self.coordinator.station_info or {}
+        attrs.update(info.get("details", {}))
+        if "annual_max_median" in info.get("levels", {}):
+            attrs["median_annual_maximum_m"] = info["levels"]["annual_max_median"]
+        if "annual_max_highest" in info.get("levels", {}):
+            attrs["highest_annual_maximum_m"] = info["levels"]["annual_max_highest"]
         attrs.update(self._location_attributes())
         return attrs
 

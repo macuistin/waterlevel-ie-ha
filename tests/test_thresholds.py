@@ -42,6 +42,7 @@ HYDRO_YEAR = [
 ]
 WEEK_URL = HYDRO_URL.format(station="14029", param="S", period="week")
 YEAR_URL = HYDRO_URL.format(station="14029", param="S", period="year")
+INDEX_URL = "https://waterlevel.ie/hydro-data/data/internet/stations/0/14029/index.json"
 WATCH_RESTORE = (
     State("number.graiguenamanagh_watch_level", "1.2"),
     {
@@ -192,13 +193,14 @@ async def test_station_without_water_level_skips_history(
     hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
 ) -> None:
     aioclient_mock.get("https://waterlevel.ie/data/day/14029_0002.csv", text="")
+    aioclient_mock.get(INDEX_URL, status=404)
     aioclient_mock.get(LATEST_GEOJSON_URL, json=LATEST)
     entry = _entry(hass, sensors=["0002"])
     assert await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
 
     assert "suggested_thresholds" not in entry.data
-    assert not any("hydro-data" in str(c[1]) for c in aioclient_mock.mock_calls)
+    assert not any(f"/{param}/" in str(c[1]) for c in aioclient_mock.mock_calls for param in "SQ")
 
 
 async def test_alert_stage_option(hass: HomeAssistant, aioclient_mock: AiohttpClientMocker) -> None:

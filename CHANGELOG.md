@@ -2,6 +2,14 @@
 
 What each release changed, newest first.
 
+## Unreleased
+
+**Added**
+- Flood Stage now shows what OPW Hydro-Data publishes about the station: `status`, `catchment`, `catchment_area_km2`, `river_basin_district` and `station_class`, plus the station's `median_annual_maximum_m` and `highest_annual_maximum_m` levels from its alarm-level file, in the same units as Water Level. See [Station details and alarm levels](README.md#station-details-and-alarm-levels).
+
+**Upgrading**
+- Nothing to do. Stations you already have look the details up once, shortly after Home Assistant starts. Your thresholds are unchanged.
+
 ## v1.3.0
 
 Adds a draft Irish (Gaeilge) translation and completes the Platinum tier of the Home Assistant quality scale with strict typing. Nothing changes in how the integration behaves, and there is nothing to do when upgrading.

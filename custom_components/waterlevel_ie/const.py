@@ -17,6 +17,13 @@ HYDRO_SERIES_URL = (
     "https://waterlevel.ie/hydro-data/data/internet/stations/0/{station}/{param}/{period}.json"
 )
 
+# A station's metadata, and its alarm levels (percentiles and annual maxima) for a
+# parameter, S (level) or Q (flow), in OPW Hydro-Data's absolute datum
+HYDRO_STATION_URL = "https://waterlevel.ie/hydro-data/data/internet/stations/0/{station}/index.json"
+HYDRO_ALARM_URL = (
+    "https://waterlevel.ie/hydro-data/data/internet/stations/0/{station}/{param}/alarmlevel.json"
+)
+
 # Live 15-minute sensors (fetched from the day/week CSV), by OPW sensor code.
 # Names, units and device classes are in sensor.py, names and icons in strings.json
 # and icons.json.
@@ -59,6 +66,8 @@ CONF_LATITUDE = "latitude"
 CONF_LONGITUDE = "longitude"
 # Flood thresholds suggested from the station's own history (see thresholds.py)
 CONF_SUGGESTED_THRESHOLDS = "suggested_thresholds"
+# What Hydro-Data publishes about the station: its details and reference levels
+CONF_STATION_INFO = "station_info"
 
 # Options (Settings → Devices & services → Configure)
 CONF_SCAN_INTERVAL = "scan_interval"  # minutes
