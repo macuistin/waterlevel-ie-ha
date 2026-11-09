@@ -2,7 +2,9 @@
 
 What each release changed, newest first.
 
-## Unreleased
+## v1.4.0
+
+Sensors now keep showing their last reading when a station stops reporting, instead of going unavailable, and Flood Stage shows more about each station from OPW Hydro-Data. Read the first Upgrading note if an automation triggers on `unavailable`.
 
 **Added**
 - Flood Stage now shows what OPW Hydro-Data publishes about the station: `status`, `catchment`, `catchment_area_km2`, `river_basin_district` and `station_class`, plus the station's `median_annual_maximum_m` and `highest_annual_maximum_m` levels from its alarm-level file, in the same units as Water Level. See [Station details and alarm levels](README.md#station-details-and-alarm-levels).
