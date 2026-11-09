@@ -2,7 +2,9 @@
 
 What each release changed, newest first.
 
-## Unreleased
+## v1.5.0
+
+Stations now start with flood thresholds taken from their OPW alarm levels, so you don't have to research them, and a new Station Information diagnostic sensor shows where the defaults came from. Thresholds you have set are kept.
 
 **Added**
 - Default flood thresholds from each station's OPW alarm levels: Watch is the level exceeded 1% of the time, Alert the median yearly highest level and Serious the highest yearly maximum on record. See [Default thresholds from alarm levels](README.md#default-thresholds-from-alarm-levels).
