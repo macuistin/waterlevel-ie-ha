@@ -39,5 +39,8 @@ async def async_get_config_entry_diagnostics(
         "data": coordinator.data,
         "sensor_attributes": coordinator.sensor_attrs,
         "thresholds": {key: coordinator.get_threshold(key) for key in THRESHOLD_ENTITIES},
+        "default_thresholds": coordinator.default_thresholds()[0],
+        "default_thresholds_source": coordinator.default_thresholds()[1],
+        "station_info": coordinator.station_info,
         "flood_stage": coordinator.flood_stage(),
     }

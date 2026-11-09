@@ -14,6 +14,7 @@
       "discharge": { "default": "mdi:waves-arrow-right" },
       "last_reading": { "default": "mdi:clock-outline" },
       "data_age": { "default": "mdi:clock-alert-outline" },
+      "station_info": { "default": "mdi:information-outline" },
       "flood_stage": {
         "default": "mdi:waves",
         "state": {

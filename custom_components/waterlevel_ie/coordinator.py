@@ -38,7 +38,7 @@ from .const import (
     TREND_RATE,
     WATER_LEVEL,
 )
-from .thresholds import datum_offset, suggest_thresholds
+from .thresholds import alarm_thresholds, datum_offset, suggest_thresholds
 
 _LOGGER = logging.getLogger(__name__)
 # OPW asks for bulk files to be fetched no more than once every 15 minutes
@@ -130,15 +130,12 @@ class WaterlevelCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # Thresholds suggested from the station's history: None until looked up,
         # {} when the station has no usable history
         self.suggested: dict[str, float] | None = entry.data.get(CONF_SUGGESTED_THRESHOLDS)
-        # Flood thresholds: the suggestions where there are some, else the
-        # THRESHOLD_ENTITIES defaults, overridden by the number entities
-        self._thresholds: dict[str, float | None] = {
-            key: (self.suggested or {}).get(key, cfg["default"])
-            for key, cfg in THRESHOLD_ENTITIES.items()
-        }
         # What Hydro-Data publishes about the station, None until looked up: its
         # details, and reference levels in the same units as the Water Level sensor
         self.station_info: dict[str, Any] | None = entry.data.get(CONF_STATION_INFO)
+        # Flood thresholds start at the defaults (see default_thresholds) and are
+        # overridden by the number entities
+        self._thresholds: dict[str, float | None] = dict(self.default_thresholds()[0])
         # Thresholds set by the user (or restored from a previous run)
         self._user_thresholds: set[str] = set()
         # Lowest flood stage that turns Flood Alert on
@@ -166,6 +163,25 @@ class WaterlevelCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 minutes=entry.options.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
             ),
         )
+
+    def default_thresholds(self) -> tuple[dict[str, float], str]:
+        """The thresholds used until the user sets their own, and where they come from.
+
+        The source is "alarm_levels" (the station's OPW alarm levels), "history"
+        (percentiles of its daily record) or "fallback" (the fixed Barrow values).
+        """
+        if alarm := alarm_thresholds((self.station_info or {}).get("levels", {})):
+            return alarm, "alarm_levels"
+        if self.suggested and all(key in self.suggested for key in THRESHOLD_ENTITIES):
+            return {key: self.suggested[key] for key in THRESHOLD_ENTITIES}, "history"
+        return {key: cfg["default"] for key, cfg in THRESHOLD_ENTITIES.items()}, "fallback"
+
+    def _apply_default_thresholds(self) -> None:
+        """Move every threshold the user hasn't set to the current defaults."""
+        defaults, _ = self.default_thresholds()
+        for key, value in defaults.items():
+            if key not in self._user_thresholds:
+                self._thresholds[key] = value
 
     def get_threshold(self, key: str) -> float | None:
         """Return the current flood threshold (set by number entity)."""
@@ -204,9 +220,7 @@ class WaterlevelCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             self.config_entry,
             data={**self.config_entry.data, CONF_SUGGESTED_THRESHOLDS: self.suggested},
         )
-        for key in THRESHOLD_ENTITIES:
-            if key in self.suggested and key not in self._user_thresholds:
-                self._thresholds[key] = self.suggested[key]
+        self._apply_default_thresholds()
         self.async_update_listeners()
 
     async def async_load_station_info(self) -> None:
@@ -243,6 +257,7 @@ class WaterlevelCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             self.config_entry,
             data={**self.config_entry.data, CONF_STATION_INFO: self.station_info},
         )
+        self._apply_default_thresholds()
         self.async_update_listeners()
 
     @property

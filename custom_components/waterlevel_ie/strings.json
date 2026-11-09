@@ -164,6 +164,34 @@
       },
       "data_age": {
         "name": "Data Age"
+      },
+      "station_info": {
+        "name": "Station Information",
+        "state": {
+          "alarm_levels": "Alarm levels",
+          "history": "Station history",
+          "fallback": "Fallback values"
+        },
+        "state_attributes": {
+          "exceeded_1_percent_level_m": {
+            "name": "Level exceeded 1% of the time"
+          },
+          "median_annual_maximum_m": {
+            "name": "Median annual maximum"
+          },
+          "highest_annual_maximum_m": {
+            "name": "Highest annual maximum"
+          },
+          "default_watch_level_m": {
+            "name": "Default watch level"
+          },
+          "default_alert_level_m": {
+            "name": "Default alert level"
+          },
+          "default_serious_level_m": {
+            "name": "Default serious level"
+          }
+        }
       }
     },
     "binary_sensor": {
