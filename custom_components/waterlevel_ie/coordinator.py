@@ -150,7 +150,7 @@ class WaterlevelCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._readings: dict[str, Reading] = {}
         self._week: dict[str, list[Reading]] = {}
         # A station counts as stale (likely offline) after this long without a reading.
-        # Until then an outage keeps the last good readings; after it, entities go unavailable.
+        # Readings are kept through any outage; stale ones are flagged, not hidden.
         self.stale_after = timedelta(hours=entry.options.get(CONF_STALE_HOURS, DEFAULT_STALE_HOURS))
         # Daily summaries by source sensor, refreshed every SUMMARY_TTL
         self._summaries: dict[str, dict[str, float | None]] = {}
@@ -327,17 +327,17 @@ class WaterlevelCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 week = [*week, current]
             data[TREND_RATE] = trend_rate(week)
 
-        if live_keys and self.is_stale():
-            # Nothing usable: mark the entities unavailable rather than unknown, or
-            # rather than showing readings older than stale_after as current.
+        if live_keys and self.last_reading_time is None:
+            # Nothing has ever been read, so there is no last value to show. Entities
+            # go unavailable (and setup retries); once there is a reading, it is kept
+            # through any outage and Data Stale reports its age.
             # The coordinator logs this once, and again when the station recovers.
             raise UpdateFailed(
                 translation_domain=DOMAIN,
                 translation_key="update_failed",
                 translation_placeholders={
                     "station": self.station,
-                    "error": "no reading newer than "
-                    f"{self.stale_after.total_seconds() / 3600:g} hours",
+                    "error": "no reading available",
                 },
             )
 
@@ -374,7 +374,11 @@ class WaterlevelCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         if reading is None:
             return None
         self._readings[key] = reading
-        self.sensor_attrs.setdefault(key, {})["last_reported"] = reading.time.isoformat()
+        attrs = self.sensor_attrs.setdefault(key, {})
+        attrs["last_reported"] = reading.time.isoformat()
+        # True once this reading is older than stale_after, so automations can tell
+        # a kept last value from a current one
+        attrs["stale"] = dt_util.utcnow() - reading.time > self.stale_after
         return reading.value
 
     async def _fetch_week(self, sensor: str) -> list[Reading]:

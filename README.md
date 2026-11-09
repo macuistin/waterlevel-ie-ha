@@ -161,7 +161,7 @@ The flood thresholds are set on the device page after setup. Each station also h
 | Option | Default | What it does |
 |---|---|---|
 | Update interval | 15 min | How often the station reads new data. 15 minutes is the shortest allowed, as the OPW asks |
-| Mark data as stale after | 3 h | How long without a reading before Data Stale turns on and the other entities become unavailable |
+| Mark data as stale after | 3 h | How long without a reading before Data Stale turns on and each reading's `stale` attribute becomes `true` |
 | Turn Flood Alert on from | Watch | The lowest flood stage that turns Flood Alert on: Watch, Alert or Serious |
 | Check the station for new sensors | off | Looks up the station's sensors again and adds any new ones, for example after the OPW adds a temperature probe |
 
@@ -177,7 +177,7 @@ Every 15 minutes, the integration reads OPW's latest-readings file, which holds 
 
 The flood stage and Flood Alert are worked out in Home Assistant from the latest Water Level and your thresholds; changing a threshold updates them straight away without a download.
 
-If waterlevel.ie can't be reached or a gauge stops reporting, the sensors keep their last reading (its `last_reported` attribute and Data Age show how old it is). Once the station has sent nothing for 3 hours (an option, see Configuration), Data Stale turns on and the other entities become **unavailable** until a new reading arrives; Last Reading, Data Age and Data Stale stay available. The integration logs the outage once and logs again when it recovers. If only the water level is missing, Flood Stage and Flood Alert show unknown rather than "normal".
+If waterlevel.ie can't be reached or a gauge stops reporting, the sensors keep showing their last reading, however long the outage. Each one has a `last_reported` attribute (when that reading was taken) and a `stale` attribute, and Last Reading and Data Age show the same for the station. Once the station has sent nothing for 3 hours (an option, see Configuration), Data Stale turns on and `stale` becomes `true`; the values stay until a new reading arrives. Flood Stage and Flood Alert also carry `last_reported` and `stale` from the water level they use, so an automation can ignore an old reading. Entities are only unavailable if the station has never been read. The integration logs the outage once and logs again when it recovers. If only the water level is missing, Flood Stage and Flood Alert show unknown rather than "normal".
 
 ---
 
@@ -301,7 +301,7 @@ automation:
 
 ## Troubleshooting
 
-**Entities are unavailable.** The station has sent no reading for 3 hours, or waterlevel.ie can't be reached. Data Stale and Data Age show how long it has been. Check [the station's page](https://waterlevel.ie/hydro-data/) in a browser. The entities come back on their own at the next successful update. A station that had already stopped reporting when you added it still sets up this way, with Data Stale on.
+**Values look frozen.** The station has sent no reading for a while, or waterlevel.ie can't be reached, so the sensors show the last reading. Data Stale, Last Reading, Data Age and each sensor's `last_reported` attribute show how old it is. Check [the station's page](https://waterlevel.ie/hydro-data/) in a browser. The values update on their own at the next successful update. A station that had already stopped reporting when you added it still sets up this way, showing its last reading with Data Stale on.
 
 **"Could not load the river list".** waterlevel.ie's river pages didn't load. Try again later, or choose **Enter a station number** instead.
 
