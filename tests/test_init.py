@@ -57,6 +57,10 @@ def _mock_station(aioclient_mock: AiohttpClientMocker, station: str = "14029") -
             aioclient_mock.get(
                 HYDRO_URL.format(station=station, param=param, period=period), status=404
             )
+    aioclient_mock.get(
+        f"https://waterlevel.ie/hydro-data/data/internet/stations/0/{station}/index.json",
+        status=404,
+    )
     aioclient_mock.get(f"https://waterlevel.ie/data/day/{station}_0001.csv", text=DAY_CSV)
     aioclient_mock.get(f"https://waterlevel.ie/data/week/{station}_0001.csv", text=WEEK_CSV)
     aioclient_mock.get(

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 from datetime import datetime, timedelta
 import logging
 from typing import Any
@@ -22,6 +23,7 @@ from .const import (
     CONF_SCAN_INTERVAL,
     CONF_STALE_HOURS,
     CONF_STATION,
+    CONF_STATION_INFO,
     CONF_STATION_NAME,
     CONF_SUGGESTED_THRESHOLDS,
     DEFAULT_ALERT_STAGE,
@@ -134,6 +136,9 @@ class WaterlevelCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             key: (self.suggested or {}).get(key, cfg["default"])
             for key, cfg in THRESHOLD_ENTITIES.items()
         }
+        # What Hydro-Data publishes about the station, None until looked up: its
+        # details, and reference levels in the same units as the Water Level sensor
+        self.station_info: dict[str, Any] | None = entry.data.get(CONF_STATION_INFO)
         # Thresholds set by the user (or restored from a previous run)
         self._user_thresholds: set[str] = set()
         # Lowest flood stage that turns Flood Alert on
@@ -202,6 +207,42 @@ class WaterlevelCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         for key in THRESHOLD_ENTITIES:
             if key in self.suggested and key not in self._user_thresholds:
                 self._thresholds[key] = self.suggested[key]
+        self.async_update_listeners()
+
+    async def async_load_station_info(self) -> None:
+        """Look up the station's Hydro-Data details and alarm levels, once.
+
+        The alarm levels are on Hydro-Data's absolute datum, so they are shifted onto
+        the staff gauge the Water Level sensor reads, the same way the threshold
+        suggestions are. The result is kept in the config entry.
+        """
+        if self.station_info is not None:
+            return
+        info: dict[str, str | float] = {}
+        absolute: dict[str, float] = {}
+        recent: list[Reading] = []
+        try:
+            with contextlib.suppress(StationNotFound):
+                info = await self.api.station_info(self.station)
+            if WATER_LEVEL in self.available_sensors:
+                with contextlib.suppress(StationNotFound):
+                    absolute = await self.api.alarm_levels(self.station)
+                if absolute:
+                    with contextlib.suppress(StationNotFound):
+                        recent = await self.api.hydro_series(self.station, "S", "week")
+        except WaterlevelError as err:
+            # Try again next time the station is set up
+            _LOGGER.debug("Could not fetch details for station %s: %s", self.station, err)
+            return
+        levels: dict[str, float] = {}
+        if (offset := datum_offset(self._week.get(WATER_LEVEL, []), recent)) is not None:
+            levels = {name: round(value + offset, 2) for name, value in absolute.items()}
+        self.station_info = {"details": info, "levels": levels}
+        _LOGGER.debug("Details for station %s: %s", self.station, self.station_info)
+        self.hass.config_entries.async_update_entry(
+            self.config_entry,
+            data={**self.config_entry.data, CONF_STATION_INFO: self.station_info},
+        )
         self.async_update_listeners()
 
     @property

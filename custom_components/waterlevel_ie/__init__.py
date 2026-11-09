@@ -33,10 +33,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: WaterlevelConfigEntry) -
             await hass.config_entries.async_reload(entry.entry_id)
 
     entry.async_on_unload(entry.add_update_listener(_async_entry_updated))
-    entry.async_create_background_task(
-        hass, coordinator.async_load_suggested_thresholds(), f"{DOMAIN} thresholds"
-    )
+    entry.async_create_background_task(hass, _async_load_history(coordinator), f"{DOMAIN} history")
     return True
+
+
+async def _async_load_history(coordinator: WaterlevelCoordinator) -> None:
+    """Look up what Hydro-Data holds about the station, once: thresholds, then details."""
+    await coordinator.async_load_suggested_thresholds()
+    await coordinator.async_load_station_info()
 
 
 def _reload_key(entry: WaterlevelConfigEntry) -> tuple[dict[str, Any], tuple[str, ...]]:

@@ -4,11 +4,15 @@ What each release changed, newest first.
 
 ## Unreleased
 
+**Added**
+- Flood Stage now shows what OPW Hydro-Data publishes about the station: `status`, `catchment`, `catchment_area_km2`, `river_basin_district` and `station_class`, plus the station's `median_annual_maximum_m` and `highest_annual_maximum_m` levels from its alarm-level file, in the same units as Water Level. See [Station details and alarm levels](README.md#station-details-and-alarm-levels).
+
 **Fixes**
 - Sensors no longer go unavailable when a station stops reporting. They keep the last known value however long the outage lasts. Each reading has a `last_reported` attribute and a new `stale` attribute (true once it is older than the stale option), and Flood Stage and Flood Alert carry the same two attributes for the water level they use. Last Reading (the existing timestamp entity) and Data Age show when the station last reported.
 
 **Upgrading**
 - Entities used to become unavailable after 3 hours without a reading; they now keep showing the last value. An automation that triggered on `unavailable` should trigger on Data Stale turning on, or check the `stale` attribute, instead. Flood Alert can stay on or off from an old reading during a long outage, so check `stale` if that matters.
+- Nothing to do. Stations you already have look the details up once, shortly after Home Assistant starts. Your thresholds are unchanged.
 
 ## v1.3.0
 

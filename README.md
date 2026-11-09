@@ -89,6 +89,22 @@ Why 5%, 1% and 0.1%: on a typical record that means Watch is reached on about 18
 
 Thresholds you've set yourself are never changed by a suggestion. They persist across restarts, and you can adjust them from the device page in **Settings → Devices & Services** or use them in dashboards as interactive controls.
 
+### Station details and alarm levels
+
+OPW Hydro-Data also publishes a metadata file and a set of reference levels for each station. When you add a station, the integration reads them once and shows them as attributes on Flood Stage:
+
+| Attribute | Description |
+|---|---|
+| `status` | The station's status in Hydro-Data, such as `Active` |
+| `catchment` | The catchment the station is in |
+| `catchment_area_km2` | The area draining to the station, in km² |
+| `river_basin_district` | The river basin district |
+| `station_class` | What the station measures, such as `Level & Flow` |
+| `median_annual_maximum_m` | The median of the station's yearly highest levels, a typical big flood |
+| `highest_annual_maximum_m` | The highest yearly maximum on record |
+
+Hydro-Data gives its levels on an absolute datum, so the two levels are shifted onto the staff gauge, the same way as the threshold suggestions, and are in the same units as Water Level. They are left out if the station's readings can't be lined up. Fields Hydro-Data leaves empty are left out too. These are statistics from the OPW's record, not flood warnings.
+
 ### Map Support
 
 All entities expose `latitude` and `longitude` as state attributes. Stations appear automatically on Home Assistant map cards without any extra configuration.
