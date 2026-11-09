@@ -235,6 +235,8 @@ def test_hacs_manifest_keys() -> None:
     hacs = _load(ROOT / "hacs.json")
     assert hacs["name"] == manifest["name"]
     assert hacs["homeassistant"]
+    # Irish stations only: HACS asks region-limited repositories to say so.
+    assert hacs["country"] == "IE"
 
 
 def test_one_integration_in_the_repo() -> None:
