@@ -2,7 +2,9 @@
 
 What each release changed, newest first.
 
-## Unreleased
+## v1.5.1
+
+A small release that tells HACS the integration is for Ireland only, which it asks of repositories limited to one country before listing them in the default repositories. Nothing changes in Home Assistant.
 
 **Changed**
 - `hacs.json` now sets `country` to `IE`, as HACS asks of repositories limited to one country, ahead of listing in the HACS default repositories.
