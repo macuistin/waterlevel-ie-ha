@@ -16,6 +16,8 @@ PLATFORMS = [Platform.SENSOR, Platform.BINARY_SENSOR, Platform.NUMBER]
 
 async def async_setup_entry(hass: HomeAssistant, entry: WaterlevelConfigEntry) -> bool:
     coordinator = WaterlevelCoordinator(hass, entry)
+    # Before the first update, so the percentile has its flows from the start
+    await coordinator.async_load_flow_percentiles()
     try:
         await coordinator.async_config_entry_first_refresh()
     except ConfigEntryNotReady:

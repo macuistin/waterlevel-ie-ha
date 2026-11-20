@@ -2,6 +2,14 @@
 
 What each release changed, newest first.
 
+## Unreleased
+
+**Added**
+- **Flow Percentile** sensor: where the current Discharge sits in the station's flow record, from the flow percentiles OPW Hydro-Data publishes, where 50 is the median. It appears at stations that have Discharge and a published flow record, and comes with an Irish translation. See [Flow percentile](README.md#flow-percentile).
+
+**Upgrading**
+- Stations you already have get the new sensor the next time Home Assistant starts or the integration reloads; you don't need to check for new sensors.
+
 ## v1.5.1
 
 A small release that tells HACS the integration is for Ireland only, which it asks of repositories limited to one country before listing them in the default repositories. Nothing changes in Home Assistant.

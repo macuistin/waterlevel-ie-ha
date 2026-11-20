@@ -133,6 +133,9 @@
       "discharge": {
         "name": "Discharge"
       },
+      "flow_percentile": {
+        "name": "Flow Percentile"
+      },
       "flood_stage": {
         "name": "Flood Stage",
         "state": {

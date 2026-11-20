@@ -53,7 +53,7 @@ def _mock_station(aioclient_mock: AiohttpClientMocker, station: str = "14029") -
     Register any Hydro-Data mocks a test needs before calling this; the first match wins.
     """
     for param in ("S", "Q"):
-        for period in ("week", "year"):
+        for period in ("week", "year", "alarmlevel"):
             aioclient_mock.get(
                 HYDRO_URL.format(station=station, param=param, period=period), status=404
             )

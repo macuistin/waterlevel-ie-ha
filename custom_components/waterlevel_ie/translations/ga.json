@@ -133,6 +133,9 @@
       "discharge": {
         "name": "Sceitheadh"
       },
+      "flow_percentile": {
+        "name": "Céatadán Sreafa"
+      },
       "flood_stage": {
         "name": "Céim Tuile",
         "state": {

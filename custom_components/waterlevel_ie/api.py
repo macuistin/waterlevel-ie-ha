@@ -190,6 +190,27 @@ def parse_alarm_levels(payload: object) -> dict[str, float]:
     return levels
 
 
+# The flow percentiles Hydro-Data publishes in a station's Q alarmlevel file, by the
+# percentage of the time the flow is exceeded
+FLOW_EXCEEDANCE = (1, 5, 10, 25, 50, 75, 80, 90, 95, 99)
+
+
+def parse_flow_percentiles(payload: object) -> dict[str, float]:
+    """Parse a Hydro-Data Q alarmlevel file into {"p05": flow in m³/s, ...}, newest of each.
+
+    "p05" is the flow exceeded 5% of the time. Series with no positive value are skipped.
+    """
+    names = {f"WEB.Percentile-{pct:02d}": f"p{pct:02d}" for pct in FLOW_EXCEEDANCE}
+    flows: dict[str, float] = {}
+    for series in payload if isinstance(payload, list) else []:
+        if not isinstance(series, dict) or series.get("ts_shortname") not in names:
+            continue
+        readings = parse_hydro_series([series])
+        if readings and readings[-1].value > 0:
+            flows[names[series["ts_shortname"]]] = readings[-1].value
+    return flows
+
+
 def _number(raw: object) -> float | None:
     """The leading number in a metadata value such as "113.00 km²", or None."""
     if match := re.match(r"\s*(-?\d+(?:\.\d+)?)", str(raw or "")):
@@ -344,6 +365,11 @@ class WaterlevelApi:
         """The station's reference levels from Hydro-Data, on its absolute datum."""
         url = HYDRO_ALARM_URL.format(station=station, param=param)
         return parse_alarm_levels(await self._get_json(url))
+
+    async def flow_percentiles(self, station: str) -> dict[str, float]:
+        """The station's flow percentiles from Hydro-Data, in m³/s."""
+        url = HYDRO_ALARM_URL.format(station=station, param="Q")
+        return parse_flow_percentiles(await self._get_json(url))
 
     async def latest(self) -> dict[str, dict[str, Reading]]:
         """Latest reading of every sensor on every station (one shared file)."""

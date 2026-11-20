@@ -12,6 +12,7 @@
       "daily_max_water_level": { "default": "mdi:arrow-collapse-up" },
       "water_level_trend": { "default": "mdi:chart-line-variant" },
       "discharge": { "default": "mdi:waves-arrow-right" },
+      "flow_percentile": { "default": "mdi:chart-bell-curve-cumulative" },
       "last_reading": { "default": "mdi:clock-outline" },
       "data_age": { "default": "mdi:clock-alert-outline" },
       "station_info": { "default": "mdi:information-outline" },

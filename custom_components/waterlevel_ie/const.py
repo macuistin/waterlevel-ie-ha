@@ -56,6 +56,8 @@ SUMMARY_SENSOR_TYPES = {
 HYDRO_SENSOR_TYPES = {
     "discharge": {"hydro_param": "Q", "hydro_series": "WEB.Cmd.Runoff"},
 }
+# Where the current discharge sits in the station's record, as a percentile
+FLOW_PERCENTILE = "flow_percentile"
 # Water level rate of change, worked out from the week of readings
 TREND_RATE = "trend_rate"
 
@@ -68,6 +70,8 @@ CONF_LONGITUDE = "longitude"
 CONF_SUGGESTED_THRESHOLDS = "suggested_thresholds"
 # What Hydro-Data publishes about the station: its details and reference levels
 CONF_STATION_INFO = "station_info"
+# The station's flow percentiles from Hydro-Data ({} when it publishes none)
+CONF_FLOW_PERCENTILES = "flow_percentiles"
 
 # Options (Settings → Devices & services → Configure)
 CONF_SCAN_INTERVAL = "scan_interval"  # minutes
