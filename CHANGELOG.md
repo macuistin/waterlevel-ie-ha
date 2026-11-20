@@ -5,9 +5,16 @@ What each release changed, newest first.
 ## Unreleased
 
 **Added**
+- **England stations**, from the Environment Agency's real-time flood-monitoring API (Open Government Licence). A new **Find stations in England (Environment Agency)** option when adding a station finds gauges near a location. Each is its own device type (manufacturer Environment Agency) with the same entity names as an Irish station: Water Level, Water Level Trend, Discharge where measured, Flood Stage, Flood Alert, the three thresholds, Station Information, Last Reading, Data Age and Data Stale. Flood thresholds start from the station's stage scale; a station without one leaves the flood entities unknown until you set thresholds. See [Supported stations](README.md#supported-stations).
+- A Station Information state `stage_scale`, with an Irish translation (a first draft, corrections welcome).
 - **Flow Percentile** sensor: where the current Discharge sits in the station's flow record, from the flow percentiles OPW Hydro-Data publishes, where 50 is the median. It appears at stations that have Discharge and a published flow record, and comes with an Irish translation. See [Flow percentile](README.md#flow-percentile).
 
+**Changed**
+- `hacs.json` `country` is now `IE` and `GB`, as the integration reads English stations as well as Irish ones.
+- Internally, the readings, thresholds and flood-stage code every source shares is now a `StationCoordinator` base class that the Irish and English coordinators extend. Irish stations, their entity ids and unique ids are unchanged.
+
 **Upgrading**
+- Nothing changes for existing Irish stations.
 - Stations you already have get the new sensor the next time Home Assistant starts or the integration reloads; you don't need to check for new sensors.
 
 ## v1.5.1

@@ -12,14 +12,14 @@
 [![Tests](https://github.com/macuistin/waterlevel-ie-ha/actions/workflows/tests.yml/badge.svg)](https://github.com/macuistin/waterlevel-ie-ha/actions/workflows/tests.yml)
 [![License](https://img.shields.io/github/license/macuistin/waterlevel-ie-ha)](LICENSE)
 
-A custom Home Assistant integration that pulls real-time river gauge data from [waterlevel.ie](https://waterlevel.ie), operated by the Irish Office of Public Works (OPW).
+A custom Home Assistant integration that pulls real-time river gauge data from [waterlevel.ie](https://waterlevel.ie), operated by the Irish Office of Public Works (OPW), and from the [Environment Agency](https://environment.data.gov.uk/flood-monitoring/doc/reference) for England.
 
-> **Unofficial.** This is a community-built integration. It is not made, endorsed or supported by waterlevel.ie or the Office of Public Works; it only reads the open data they publish. Report problems with the integration on this repository's [issue tracker](https://github.com/macuistin/waterlevel-ie-ha/issues), not to the OPW.
+> **Unofficial.** This is a community-built integration. It is not made, endorsed or supported by waterlevel.ie, the Office of Public Works or the Environment Agency; it only reads the open data they publish. Report problems with the integration on this repository's [issue tracker](https://github.com/macuistin/waterlevel-ie-ha/issues), not to the OPW.
 
 Each gauge station becomes a **device** in Home Assistant with all its sensors, flood alerts, and threshold controls grouped underneath.
 
 > [!WARNING]
-> **This is not a flood warning service.** Readings can be late, missing or wrong, and the flood stages here come from thresholds you set (or ones suggested from past data), not from any official assessment. For flood warnings, check [floodinfo.ie](https://www.floodinfo.ie/) and [Met Éireann warnings](https://www.met.ie/warnings), and follow advice from your local authority.
+> **This is not a flood warning service.** Readings can be late, missing or wrong, and the flood stages here come from thresholds you set (or ones suggested from past data), not from any official assessment. For flood warnings, check [floodinfo.ie](https://www.floodinfo.ie/) and [Met Éireann warnings](https://www.met.ie/warnings) in Ireland, or [GOV.UK check for flooding](https://check-for-flooding.service.gov.uk/) in England, and follow advice from your local authority.
 
 ## Use cases
 
@@ -32,7 +32,7 @@ Each gauge station becomes a **device** in Home Assistant with all its sensors, 
 
 ## Features
 
-- Browse and add any of the ~500+ Irish river gauge stations
+- Browse and add any of the ~500+ Irish river gauge stations, or any Environment Agency river gauge in England
 - Find stations near your home (or any location), search by river (Barrow, Shannon, Boyne, etc.) then pick a station, or enter a station number directly
 - Auto-detects which sensors are available for each station
 - Sensors poll every 15 minutes (matching the gauge update frequency), reading one shared OPW latest-readings file for all your stations to keep requests to waterlevel.ie low
@@ -131,7 +131,9 @@ All entities expose `latitude` and `longitude` as state attributes. Stations app
 
 ## Supported stations
 
-Any gauge station published on [waterlevel.ie](https://waterlevel.ie/hydro-data/), which covers the OPW's hydrometric network across Ireland (about 500 stations). Stations show the sensors listed above where the gauge has them; most have a water level, and many also report temperature, battery and signal. Stations run by other bodies (for example the EPA or local authorities) are only included where waterlevel.ie publishes them.
+**Ireland.** Any gauge station published on [waterlevel.ie](https://waterlevel.ie/hydro-data/), which covers the OPW's hydrometric network across Ireland (about 500 stations). Stations show the sensors listed above where the gauge has them; most have a water level, and many also report temperature, battery and signal. Stations run by other bodies (for example the EPA or local authorities) are only included where waterlevel.ie publishes them.
+
+**England.** Any river gauge in the Environment Agency's [real-time flood-monitoring API](https://environment.data.gov.uk/flood-monitoring/doc/reference) that reports a river level (stage), including tidal gauges. Each is a device of its own type (manufacturer Environment Agency, model River gauge station), with the same entity names as an Irish station. It has Water Level, Water Level Trend, Flood Stage, Flood Alert, the three threshold numbers, Station Information, Last Reading, Data Age and Data Stale, and Discharge where the gauge measures flow. It has no Water Level OD, Daily Mean/Min/Max, Temperature, Battery Voltage, Signal Strength or Flow Percentile. England's flood thresholds start from the station's own stage scale, as below. Scotland and Wales are not supported yet.
 
 ---
 
@@ -163,15 +165,16 @@ After installation and restart:
    - **Find stations near a location**: starts at your home location; drag the pin or change the radius, then pick from the stations in that area, closest first
    - **Browse by river**: pick a river, then a station on it. Stations you've already added are left out of the list.
    - **Enter a station number**: type the number (e.g. `14029`) or paste the station's page address from waterlevel.ie (e.g. `https://waterlevel.ie/0000014029/`)
+   - **Find stations in England (Environment Agency)**: the same pin and radius, then pick from the Environment Agency river gauges in that area, closest first
 4. The integration detects available sensors and creates a device
 
 To add more stations, repeat from step 1 — each station is a separate integration entry and device.
 
 | Setup field | What to enter |
 |---|---|
-| Location | The area to search. Starts at your home location with a 15 km radius |
+| Location | The area to search, for Irish stations or for England. Starts at your home location with a 15 km radius |
 | River | The river or catchment the gauge is on, as waterlevel.ie lists it |
-| Station | A gauge on that river. Stations you've already added are left out |
+| Station | A gauge on that river, or in that area. Stations you've already added are left out |
 | Station number or address | The number from the station's waterlevel.ie page (`14029`, or `0000014029`), or the page's address |
 
 The flood thresholds are set on the device page after setup. Each station also has options, under **Settings → Devices & Services → Water Level IE → Configure**:
@@ -181,7 +184,7 @@ The flood thresholds are set on the device page after setup. Each station also h
 | Update interval | 15 min | How often the station reads new data. 15 minutes is the shortest allowed, as the OPW asks |
 | Mark data as stale after | 3 h | How long without a reading before Data Stale turns on and each reading's `stale` attribute becomes `true` |
 | Turn Flood Alert on from | Watch | The lowest flood stage that turns Flood Alert on: Watch, Alert or Serious |
-| Check the station for new sensors | off | Looks up the station's sensors again and adds any new ones, for example after the OPW adds a temperature probe |
+| Check the station for new sensors | off | Looks up the station's sensors again and adds any new ones, for example after the OPW adds a temperature probe. Irish stations only |
 
 Saving the options reloads the station.
 
@@ -191,7 +194,9 @@ Find station numbers and rivers at [waterlevel.ie/group/list](https://waterlevel
 
 ## How the data is updated
 
-Every 15 minutes, the integration reads OPW's latest-readings file, which holds the newest reading of every sensor on every station. It is downloaded at most once every 15 minutes and shared by all your stations, so adding more stations doesn't add more of these downloads. For Water Level, each station also reads its last 7 days to work out `week_min` and `week_max`, and uses whichever reading is newer. A sensor missing from the shared file falls back to that station's readings for today, then for the last 7 days. The daily mean, min and max come from the station's summary file, which waterlevel.ie updates once a day, so they describe yesterday; it is re-read at most once an hour. Discharge is read from the station's OPW Hydro-Data week of flow readings at each update, and Flow Percentile is worked out from it with the station's flow percentiles, which are read once when the station is set up. Coordinates come from the waterlevel.ie station map when the station is added. The station's Hydro-Data history, used to suggest thresholds, is read once when the station is added; if that fails it is tried again next time Home Assistant starts.
+**England.** Every 15 minutes, the integration reads the Environment Agency's latest-readings feed, which holds the newest reading of every measure on every station. It is downloaded at most once every 15 minutes and shared by all your England stations, as the API asks, rather than one request per station. Each station also reads its last few hours of Water Level to work out the trend, and uses whichever reading is newer. Flood thresholds start from the stage scale the Environment Agency publishes for the station, read once when it is added: Watch and Alert sit halfway and four fifths of the way from the top of the station's typical range to its highest recent level, and Serious is that highest recent level. They are starting points; set your own on the device page. A station with no stage scale has no default thresholds, so Flood Stage and Flood Alert show unknown until you set them. Water levels are on the station's own datum, so the figures are not comparable between stations. Outages and stale readings behave as below.
+
+**Ireland.** Every 15 minutes, the integration reads OPW's latest-readings file, which holds the newest reading of every sensor on every station. It is downloaded at most once every 15 minutes and shared by all your stations, so adding more stations doesn't add more of these downloads. For Water Level, each station also reads its last 7 days to work out `week_min` and `week_max`, and uses whichever reading is newer. A sensor missing from the shared file falls back to that station's readings for today, then for the last 7 days. The daily mean, min and max come from the station's summary file, which waterlevel.ie updates once a day, so they describe yesterday; it is re-read at most once an hour. Discharge is read from the station's OPW Hydro-Data week of flow readings at each update, and Flow Percentile is worked out from it with the station's flow percentiles, which are read once when the station is set up. Coordinates come from the waterlevel.ie station map when the station is added. The station's Hydro-Data history, used to suggest thresholds, is read once when the station is added; if that fails it is tried again next time Home Assistant starts.
 
 The flood stage and Flood Alert are worked out in Home Assistant from the latest Water Level and your thresholds; changing a threshold updates them straight away without a download.
 
@@ -308,7 +313,8 @@ automation:
 
 ## Known limitations
 
-- Levels are relative to each station's own datum, so 2 m at one station says nothing about 2 m at another. Use Water Level OD to compare stations.
+- Levels are relative to each station's own datum, so 2 m at one station says nothing about 2 m at another. Use Water Level OD to compare stations (Irish stations only).
+- England stations have no Flow Percentile, daily summary sensors, battery or signal sensors, because the Environment Agency doesn't publish them in the real-time API. The service is in beta, comes with no guarantee and must not be used where safety depends on it.
 - Suggested thresholds come from daily means and the station's own record, and stations with less than a year of history fall back to defaults from one River Barrow station. Check them before relying on Flood Alert.
 - Temperature is the gauge housing's temperature, not the water's.
 - Gauges report every 15 minutes, and readings can arrive late or be revised by the OPW, so the latest value can be up to about half an hour old.
@@ -343,13 +349,15 @@ automation:
 
 ## Data & Attribution
 
-Data provided by [waterlevel.ie](https://waterlevel.ie), operated by the [Office of Public Works (OPW)](https://www.opw.ie), Ireland.
+**Ireland.** Data provided by [waterlevel.ie](https://waterlevel.ie), operated by the [Office of Public Works (OPW)](https://www.opw.ie), Ireland.
 
 Licensed under [Creative Commons Attribution 4.0 (CC BY 4.0)](https://creativecommons.org/licenses/by/4.0/).
 
 Suggested attribution: *Contains Irish Public Sector Information licensed under a Creative Commons Attribution 4.0 International (CC BY 4.0) licence (source http://waterlevel.ie — provided by the Office of Public Works.)*
 
 Please do not poll more frequently than every 15 minutes. See [waterlevel.ie/page/api](https://waterlevel.ie/page/api/) for full API terms.
+
+**England.** This uses Environment Agency flood and river level data from the real-time data API (Beta). Licensed under the [Open Government Licence v3.0](https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/). © Environment Agency copyright and/or database right. The API asks clients to read the latest-readings feed once every 15 minutes rather than crawling every station, which is what this integration does.
 
 ---
 

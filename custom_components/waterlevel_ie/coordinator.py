@@ -35,6 +35,7 @@ from .const import (
     FLOW_PERCENTILE,
     HYDRO_SENSOR_TYPES,
     SENSOR_TYPES,
+    STATION_PAGE_URL,
     SUMMARY_SENSOR_TYPES,
     THRESHOLD_ENTITIES,
     TREND_RATE,
@@ -56,7 +57,7 @@ TREND_WINDOW = timedelta(hours=3)
 # ...and needs readings spanning at least this long
 TREND_MIN_SPAN = timedelta(minutes=45)
 
-type WaterlevelConfigEntry = ConfigEntry[WaterlevelCoordinator]
+type WaterlevelConfigEntry = ConfigEntry[StationCoordinator]
 
 
 def trend_rate(readings: list[Reading]) -> float | None:
@@ -117,10 +118,19 @@ def async_get_latest(hass: HomeAssistant) -> LatestReadings:
     return latest
 
 
-class WaterlevelCoordinator(DataUpdateCoordinator[dict[str, Any]]):
-    """Coordinator that fetches data for all sensors on one station."""
+class StationCoordinator(DataUpdateCoordinator[dict[str, Any]]):
+    """What every source's coordinator shares: one station's readings and flood stage.
+
+    A source (OPW, the Environment Agency, ...) subclasses this, reads its own API in
+    _async_update_data and says how its station appears as a device. The platforms only
+    use what is defined here, so they work for every source.
+    """
 
     config_entry: WaterlevelConfigEntry
+    # How the station appears in Home Assistant's device registry
+    manufacturer: str = "OPW Ireland"
+    # Limits of the flood threshold number entities, in metres
+    threshold_limits: tuple[float, float] = (0.0, 15.0)
 
     def __init__(self, hass: HomeAssistant, entry: WaterlevelConfigEntry) -> None:
         self.station: str = entry.data[CONF_STATION]
@@ -128,16 +138,14 @@ class WaterlevelCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self.available_sensors: list[str] = entry.data.get(CONF_AVAILABLE_SENSORS, [])
         self.latitude: float | None = entry.data.get(CONF_LATITUDE)
         self.longitude: float | None = entry.data.get(CONF_LONGITUDE)
-        self.api = WaterlevelApi(async_get_clientsession(hass))
-        self._latest = async_get_latest(hass)
         # Thresholds suggested from the station's history: None until looked up,
         # {} when the station has no usable history
         self.suggested: dict[str, float] | None = entry.data.get(CONF_SUGGESTED_THRESHOLDS)
-        # What Hydro-Data publishes about the station, None until looked up: its
+        # What the source publishes about the station, None until looked up: its
         # details, and reference levels in the same units as the Water Level sensor
         self.station_info: dict[str, Any] | None = entry.data.get(CONF_STATION_INFO)
         # The station's flow percentiles ({"p50": m³/s, ...}): None until looked up,
-        # {} when Hydro-Data publishes none
+        # {} when the source publishes none
         self.flow_percentiles: dict[str, float] | None = entry.data.get(CONF_FLOW_PERCENTILES)
         # Flood thresholds start at the defaults (see default_thresholds) and are
         # overridden by the number entities
@@ -148,38 +156,46 @@ class WaterlevelCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self.alert_stage: str = entry.options.get(CONF_ALERT_STAGE, DEFAULT_ALERT_STAGE)
         # Extra per-sensor metadata (e.g. last_reported, week_min/max, trend)
         self.sensor_attrs: dict[str, dict[str, Any]] = {}
-        # Last good reading per sensor, and the last good week of water levels,
-        # kept across updates so a short outage doesn't blank the sensors
+        # Last good reading per sensor, kept across updates so a short outage doesn't
+        # blank the sensors
         self._readings: dict[str, Reading] = {}
-        self._week: dict[str, list[Reading]] = {}
         # A station counts as stale (likely offline) after this long without a reading.
         # Readings are kept through any outage; stale ones are flagged, not hidden.
         self.stale_after = timedelta(hours=entry.options.get(CONF_STALE_HOURS, DEFAULT_STALE_HOURS))
-        # Daily summaries by source sensor, refreshed every SUMMARY_TTL
-        self._summaries: dict[str, dict[str, float | None]] = {}
-        self._summaries_fetched: datetime | None = None
-        # Only attempt the GeoJSON coordinate fetch once per session
-        self._coord_fetch_attempted: bool = False
         super().__init__(
             hass,
             _LOGGER,
             config_entry=entry,
-            name=f"{DOMAIN}_{self.station}",
+            name=f"{DOMAIN}_{self.device_key}",
             update_interval=timedelta(
                 minutes=entry.options.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
             ),
         )
 
-    def default_thresholds(self) -> tuple[dict[str, float], str]:
+    @property
+    def device_key(self) -> str:
+        """The station's key in unique ids and device identifiers.
+
+        OPW stations use their 5-digit number, which has never changed. Every other
+        source prefixes its own station reference, so the keys can't collide.
+        """
+        return self.station
+
+    @property
+    def device_model(self) -> str:
+        """The device's model, shown in the device registry."""
+        return f"Gauge Station {self.station}"
+
+    @property
+    def configuration_url(self) -> str | None:
+        """A page about the station on its publisher's site."""
+        return STATION_PAGE_URL.format(station_padded=self.station.zfill(10))
+
+    def default_thresholds(self) -> tuple[dict[str, float | None], str]:
         """The thresholds used until the user sets their own, and where they come from.
 
-        The source is "alarm_levels" (the station's OPW alarm levels), "history"
-        (percentiles of its daily record) or "fallback" (the fixed Barrow values).
+        The base class has no data to suggest from, so it returns the fixed fallback.
         """
-        if alarm := alarm_thresholds((self.station_info or {}).get("levels", {})):
-            return alarm, "alarm_levels"
-        if self.suggested and all(key in self.suggested for key in THRESHOLD_ENTITIES):
-            return {key: self.suggested[key] for key in THRESHOLD_ENTITIES}, "history"
         return {key: cfg["default"] for key, cfg in THRESHOLD_ENTITIES.items()}, "fallback"
 
     def _apply_default_thresholds(self) -> None:
@@ -201,6 +217,84 @@ class WaterlevelCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._thresholds[key] = value
         self._user_thresholds.add(key)
         self.async_update_listeners()
+
+    @property
+    def last_reading_time(self) -> datetime | None:
+        """Time of the newest reading from any of the station's live sensors."""
+        times = [r.time for k, r in self._readings.items() if k in SENSOR_TYPES]
+        return max(times, default=None)
+
+    def is_stale(self) -> bool:
+        """True when no live sensor has a reading newer than stale_after."""
+        last = self.last_reading_time
+        return last is None or dt_util.utcnow() - last > self.stale_after
+
+    def is_alert(self) -> bool | None:
+        """True when the flood stage is at or above the alert stage option; None if unknown."""
+        if (stage := self.flood_stage()) is None:
+            return None
+        return FLOOD_STAGES.index(stage) >= FLOOD_STAGES.index(self.alert_stage)
+
+    def flood_stage(self) -> str | None:
+        """Return the flood stage for the latest water level, or None when it is unknown."""
+        level = (self.data or {}).get(WATER_LEVEL)
+        if level is None or all(value is None for value in self._thresholds.values()):
+            return None
+        stage = "normal"
+        # Thresholds in ascending order of severity: the highest one reached wins
+        for key in THRESHOLD_ENTITIES:
+            threshold = self._thresholds.get(key)
+            if threshold is not None and level >= threshold:
+                stage = key
+        return stage
+
+    def _keep_reading(self, key: str, reading: Reading | None) -> float | None:
+        """Record a sensor's reading and return its value.
+
+        Keeps the last good reading through outages (its timestamp shows its age),
+        and never lets an older reading replace a newer one.
+        """
+        if (previous := self._readings.get(key)) and (
+            reading is None or previous.time > reading.time
+        ):
+            reading = previous
+        if reading is None:
+            return None
+        self._readings[key] = reading
+        attrs = self.sensor_attrs.setdefault(key, {})
+        attrs["last_reported"] = reading.time.isoformat()
+        # True once this reading is older than stale_after, so automations can tell
+        # a kept last value from a current one
+        attrs["stale"] = dt_util.utcnow() - reading.time > self.stale_after
+        return reading.value
+
+
+class WaterlevelCoordinator(StationCoordinator):
+    """Coordinator that fetches data for all sensors on one OPW station."""
+
+    def __init__(self, hass: HomeAssistant, entry: WaterlevelConfigEntry) -> None:
+        super().__init__(hass, entry)
+        self.api = WaterlevelApi(async_get_clientsession(hass))
+        self._latest = async_get_latest(hass)
+        # The last good week of water levels, kept across updates like the readings
+        self._week: dict[str, list[Reading]] = {}
+        # Daily summaries by source sensor, refreshed every SUMMARY_TTL
+        self._summaries: dict[str, dict[str, float | None]] = {}
+        self._summaries_fetched: datetime | None = None
+        # Only attempt the GeoJSON coordinate fetch once per session
+        self._coord_fetch_attempted: bool = False
+
+    def default_thresholds(self) -> tuple[dict[str, float | None], str]:
+        """The thresholds used until the user sets their own, and where they come from.
+
+        The source is "alarm_levels" (the station's OPW alarm levels), "history"
+        (percentiles of its daily record) or "fallback" (the fixed Barrow values).
+        """
+        if alarm := alarm_thresholds((self.station_info or {}).get("levels", {})):
+            return dict(alarm), "alarm_levels"
+        if self.suggested and all(key in self.suggested for key in THRESHOLD_ENTITIES):
+            return {key: self.suggested[key] for key in THRESHOLD_ENTITIES}, "history"
+        return super().default_thresholds()
 
     async def async_load_suggested_thresholds(self) -> None:
         """Look up thresholds from the station's OPW Hydro-Data history, once.
@@ -286,36 +380,6 @@ class WaterlevelCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             self.config_entry,
             data={**self.config_entry.data, CONF_FLOW_PERCENTILES: percentiles},
         )
-
-    @property
-    def last_reading_time(self) -> datetime | None:
-        """Time of the newest reading from any of the station's live sensors."""
-        times = [r.time for k, r in self._readings.items() if k in SENSOR_TYPES]
-        return max(times, default=None)
-
-    def is_stale(self) -> bool:
-        """True when no live sensor has a reading newer than stale_after."""
-        last = self.last_reading_time
-        return last is None or dt_util.utcnow() - last > self.stale_after
-
-    def is_alert(self) -> bool | None:
-        """True when the flood stage is at or above the alert stage option; None if unknown."""
-        if (stage := self.flood_stage()) is None:
-            return None
-        return FLOOD_STAGES.index(stage) >= FLOOD_STAGES.index(self.alert_stage)
-
-    def flood_stage(self) -> str | None:
-        """Return the flood stage for the latest water level, or None when it is unknown."""
-        level = (self.data or {}).get(WATER_LEVEL)
-        if level is None:
-            return None
-        stage = "normal"
-        # Thresholds in ascending order of severity: the highest one reached wins
-        for key in THRESHOLD_ENTITIES:
-            threshold = self._thresholds.get(key)
-            if threshold is not None and level >= threshold:
-                stage = key
-        return stage
 
     async def _async_update_data(self) -> dict[str, Any]:
         data: dict[str, Any] = {}
@@ -411,26 +475,6 @@ class WaterlevelCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 self.sensor_attrs.setdefault(WATER_LEVEL, {})["trend"] = trend
 
         return data
-
-    def _keep_reading(self, key: str, reading: Reading | None) -> float | None:
-        """Record a sensor's reading and return its value.
-
-        Keeps the last good reading through outages (its timestamp shows its age),
-        and never lets an older reading replace a newer one.
-        """
-        if (previous := self._readings.get(key)) and (
-            reading is None or previous.time > reading.time
-        ):
-            reading = previous
-        if reading is None:
-            return None
-        self._readings[key] = reading
-        attrs = self.sensor_attrs.setdefault(key, {})
-        attrs["last_reported"] = reading.time.isoformat()
-        # True once this reading is older than stale_after, so automations can tell
-        # a kept last value from a current one
-        attrs["stale"] = dt_util.utcnow() - reading.time > self.stale_after
-        return reading.value
 
     async def _fetch_week(self, sensor: str) -> list[Reading]:
         """Week of readings for a sensor, or [] if it can't be fetched."""

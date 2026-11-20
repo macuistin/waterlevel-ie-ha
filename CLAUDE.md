@@ -5,8 +5,9 @@ Rules for AI assistants and contributors working in this repo.
 ## What this is
 
 A Home Assistant custom integration, distributed through HACS, that reads OPW river gauge
-data published on waterlevel.ie. It is unofficial: never present it as made or endorsed by
-waterlevel.ie or the OPW, and never copy their logos. The display name is "Water Level IE";
+data published on waterlevel.ie and Environment Agency (England) river gauge data. It is
+unofficial: never present it as made or endorsed by waterlevel.ie, the OPW or the Environment
+Agency, and never copy their logos. The display name is "Water Level IE";
 the domain is `waterlevel_ie`.
 
 The repo holds the Platinum tier of the Home Assistant quality scale (and so Bronze, Silver
@@ -21,8 +22,10 @@ and don't claim a rule the code doesn't meet.
 | Path | Role |
 | --- | --- |
 | `api.py` | `WaterlevelApi` and pure `parse_*` functions: every request to waterlevel.ie and all parsing |
-| `coordinator.py` | Reads the shared latest-readings feed (`LatestReadings`) and each station's CSVs every 15 minutes; `flood_stage()` works out the stage from the held reading |
-| `config_flow.py` | Menu, browse by river, or enter a station number |
+| `ea_api.py` | `EnvironmentAgencyApi` and its pure `parse_*` functions: every request to the Environment Agency API and its parsing |
+| `coordinator.py` | `StationCoordinator`, what every source shares (kept readings, thresholds, `flood_stage()`, device hooks), and the OPW `WaterlevelCoordinator`: it reads the shared latest-readings feed (`LatestReadings`) and each station's CSVs every 15 minutes |
+| `ea_coordinator.py` | `EnvironmentAgencyCoordinator`: the shared English latest-readings feed and a station's recent level; thresholds from its stage scale |
+| `config_flow.py` | Menu: find nearby, browse by river or enter a station number (Ireland), or find stations in England |
 | `entity.py` | `WaterlevelEntity`: unique id, device info, map coordinates |
 | `sensor.py` | `SENSOR_DESCRIPTIONS`, keyed by OPW sensor code or summary key |
 | `binary_sensor.py`, `number.py` | Flood Alert and the three threshold numbers |
@@ -54,13 +57,17 @@ reason. Checks in brackets are tests in `tests/test_standards.py` unless named o
 
 ### Bronze
 
-- Unique ids (`f"{DOMAIN}_{station}_{key}"`) never change once released. English entity
+- Unique ids (`f"{DOMAIN}_{coordinator.device_key}_{key}"`) never change once released. OPW's
+  `device_key` is the 5-digit station number; every other source prefixes its own (`ea_3400TH`), so keys can't
+  collide. A new source is its own device type with the same entity names, and never changes
+  an existing source's entities. English entity
   names don't change either, because new installs derive entity ids from them.
 - Every entity subclasses `WaterlevelEntity`, which sets `has_entity_name`
   [`test_entities_use_the_shared_base`].
 - Use `entry.runtime_data`, never `hass.data[DOMAIN]`. Only the shared latest-readings feed,
   used by every entry, lives in `hass.data`.
-- Don't poll waterlevel.ie more often than every 15 minutes (their API terms).
+- Don't poll waterlevel.ie more often than every 15 minutes (their API terms). The Environment
+  Agency asks for one shared latest-readings call every 15 minutes, not one per station.
 - The config flow tests the station before it creates an entry, and the entry's unique id is
   the station, so a station can't be added twice. Setup raises `ConfigEntryNotReady` when the
   station can't be read at all.
@@ -131,7 +138,7 @@ reason. Checks in brackets are tests in `tests/test_standards.py` unless named o
 - The HACS action, hassfest and the tests run on every pull request and must pass; never
   skip or weaken them [`test_validation_runs_on_every_pull_request`].
 - `manifest.json` keeps `domain`, `name`, `documentation`, `issue_tracker`, `codeowners`
-  and `version`, and `hacs.json` keeps the same `name`, `country` (`IE`, as waterlevel.ie covers Ireland only) and the minimum Home Assistant
+  and `version`, and `hacs.json` keeps the same `name`, `country` (`IE` and `GB`, as the sources cover Ireland and England; add a country when a source for it ships) and the minimum Home Assistant
   [`test_hacs_manifest_keys`].
 - `waterlevel_ie` stays the only integration under `custom_components/`
   [`test_one_integration_in_the_repo`].
