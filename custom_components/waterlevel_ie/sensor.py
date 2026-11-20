@@ -13,6 +13,7 @@ from homeassistant.components.sensor import (
     SensorStateClass,
 )
 from homeassistant.const import (
+    PERCENTAGE,
     SIGNAL_STRENGTH_DECIBELS_MILLIWATT,
     EntityCategory,
     UnitOfElectricPotential,
@@ -25,7 +26,14 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.util import dt as dt_util
 
-from .const import FLOOD_STAGES, SENSOR_TYPES, THRESHOLD_ENTITIES, TREND_RATE, WATER_LEVEL
+from .const import (
+    FLOOD_STAGES,
+    FLOW_PERCENTILE,
+    SENSOR_TYPES,
+    THRESHOLD_ENTITIES,
+    TREND_RATE,
+    WATER_LEVEL,
+)
 from .coordinator import WaterlevelConfigEntry, WaterlevelCoordinator
 from .entity import WaterlevelEntity
 
@@ -114,6 +122,14 @@ TREND_RATE_DESCRIPTION = WaterlevelSensorEntityDescription(
     suggested_display_precision=3,
 )
 
+FLOW_PERCENTILE_DESCRIPTION = WaterlevelSensorEntityDescription(
+    key=FLOW_PERCENTILE,
+    translation_key="flow_percentile",
+    native_unit_of_measurement=PERCENTAGE,
+    state_class=SensorStateClass.MEASUREMENT,
+    suggested_display_precision=0,
+)
+
 FLOOD_STAGE_DESCRIPTION = SensorEntityDescription(
     key="flood_stage",
     translation_key="flood_stage",
@@ -159,6 +175,8 @@ async def async_setup_entry(
         for key in coordinator.available_sensors
         if key in SENSOR_DESCRIPTIONS
     ]
+    if "discharge" in coordinator.available_sensors and coordinator.flow_percentiles:
+        entities.append(FlowPercentileSensor(coordinator))
     if WATER_LEVEL in coordinator.available_sensors:
         entities += [
             FloodStageSensor(coordinator),
@@ -192,6 +210,27 @@ class WaterlevelSensor(WaterlevelEntity, SensorEntity):
         """Return the reading's time, week range and trend, and the station location."""
         attrs = dict(self.coordinator.sensor_attrs.get(self.entity_description.key, {}))
         attrs.update(self._location_attributes())
+        return attrs
+
+
+class FlowPercentileSensor(WaterlevelSensor):
+    """How the current discharge compares with the station's record: 50 is the median."""
+
+    def __init__(self, coordinator: WaterlevelCoordinator) -> None:
+        super().__init__(coordinator, FLOW_PERCENTILE_DESCRIPTION)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Add the flows the percentile is read from, in m³/s."""
+        attrs = super().extra_state_attributes
+        flows = self.coordinator.flow_percentiles or {}
+        for name, label in (
+            ("p50", "median_flow_m3s"),
+            ("p05", "exceeded_5_percent_flow_m3s"),
+            ("p95", "exceeded_95_percent_flow_m3s"),
+        ):
+            if name in flows:
+                attrs[label] = flows[name]
         return attrs
 
 

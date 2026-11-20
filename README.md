@@ -60,6 +60,7 @@ Each gauge station becomes a **device** in Home Assistant with all its sensors, 
 | Flood Stage | — | Current flood stage: `normal`, `watch`, `alert`, or `serious` |
 | Water Level Trend | m/h | How fast the level is rising (positive) or falling (negative), fitted over the last 3 hours of readings |
 | Discharge | m³/s | River flow, from [OPW Hydro-Data](https://waterlevel.ie/hydro-data/). Only at stations where the OPW still reports flow |
+| Flow Percentile | % | Where the current discharge sits in the station's flow record: 50 is the median, 90 means the river is flowing more than it does on 90% of days. See [Flow percentile](#flow-percentile). Only at stations with a flow record |
 | Last Reading | — | Time of the station's newest reading from any sensor |
 | Data Age | min | Minutes since that reading. Diagnostic |
 
@@ -105,6 +106,10 @@ OPW Hydro-Data also publishes a metadata file and a set of reference levels for 
 | `highest_annual_maximum_m` | The highest yearly maximum on record |
 
 Hydro-Data gives its levels on an absolute datum, so the two levels are shifted onto the staff gauge, the same way as the threshold suggestions, and are in the same units as Water Level. They are left out if the station's readings can't be lined up. Fields Hydro-Data leaves empty are left out too. These are statistics from the OPW's record, not flood warnings.
+
+### Flow percentile
+
+OPW Hydro-Data publishes the flows each station exceeds 1, 5, 10, 25, 50, 75, 80, 90, 95 and 99% of the time. When you add a station with Discharge, the integration reads them once and uses them to turn each new Discharge reading into a percentile, so you can see at a glance whether the river is low, normal or high for that station. A reading equal to a published flow gives that flow's percentile (the flow exceeded 50% of the time is 50), and a reading between two of them is placed between their percentiles on a logarithmic scale. A flow above the highest or below the lowest published one shows 99 or 1, because nothing is guessed beyond the record. The sensor has these attributes, all in m³/s: `median_flow_m3s`, `exceeded_5_percent_flow_m3s` and `exceeded_95_percent_flow_m3s`, and `last_reported` and `stale` from the discharge it uses. There is no Flow Percentile at a station that has no Discharge or whose flow record OPW hasn't published. If the lookup fails when the station is added, it is tried again the next time Home Assistant starts.
 
 ### Default thresholds from alarm levels
 
@@ -186,7 +191,7 @@ Find station numbers and rivers at [waterlevel.ie/group/list](https://waterlevel
 
 ## How the data is updated
 
-Every 15 minutes, the integration reads OPW's latest-readings file, which holds the newest reading of every sensor on every station. It is downloaded at most once every 15 minutes and shared by all your stations, so adding more stations doesn't add more of these downloads. For Water Level, each station also reads its last 7 days to work out `week_min` and `week_max`, and uses whichever reading is newer. A sensor missing from the shared file falls back to that station's readings for today, then for the last 7 days. The daily mean, min and max come from the station's summary file, which waterlevel.ie updates once a day, so they describe yesterday; it is re-read at most once an hour. Discharge is read from the station's OPW Hydro-Data week of flow readings at each update. Coordinates come from the waterlevel.ie station map when the station is added. The station's Hydro-Data history, used to suggest thresholds, is read once when the station is added; if that fails it is tried again next time Home Assistant starts.
+Every 15 minutes, the integration reads OPW's latest-readings file, which holds the newest reading of every sensor on every station. It is downloaded at most once every 15 minutes and shared by all your stations, so adding more stations doesn't add more of these downloads. For Water Level, each station also reads its last 7 days to work out `week_min` and `week_max`, and uses whichever reading is newer. A sensor missing from the shared file falls back to that station's readings for today, then for the last 7 days. The daily mean, min and max come from the station's summary file, which waterlevel.ie updates once a day, so they describe yesterday; it is re-read at most once an hour. Discharge is read from the station's OPW Hydro-Data week of flow readings at each update, and Flow Percentile is worked out from it with the station's flow percentiles, which are read once when the station is set up. Coordinates come from the waterlevel.ie station map when the station is added. The station's Hydro-Data history, used to suggest thresholds, is read once when the station is added; if that fails it is tried again next time Home Assistant starts.
 
 The flood stage and Flood Alert are worked out in Home Assistant from the latest Water Level and your thresholds; changing a threshold updates them straight away without a download.
 

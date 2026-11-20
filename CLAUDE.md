@@ -26,6 +26,7 @@ and don't claim a rule the code doesn't meet.
 | `entity.py` | `WaterlevelEntity`: unique id, device info, map coordinates |
 | `sensor.py` | `SENSOR_DESCRIPTIONS`, keyed by OPW sensor code or summary key |
 | `binary_sensor.py`, `number.py` | Flood Alert and the three threshold numbers |
+| `flow.py` | `flow_percentile()`: a discharge's percentile from the station's published flow percentiles (pure function) |
 | `thresholds.py` | Threshold suggestions from a station's Hydro-Data history (pure functions) |
 | `diagnostics.py` | Download diagnostics |
 | `strings.json`, `icons.json` | Every entity's name and icon, by translation key |

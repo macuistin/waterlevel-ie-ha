@@ -18,6 +18,7 @@ from .api import Reading, StationNotFound, WaterlevelApi, WaterlevelError
 from .const import (
     CONF_ALERT_STAGE,
     CONF_AVAILABLE_SENSORS,
+    CONF_FLOW_PERCENTILES,
     CONF_LATITUDE,
     CONF_LONGITUDE,
     CONF_SCAN_INTERVAL,
@@ -31,6 +32,7 @@ from .const import (
     DEFAULT_STALE_HOURS,
     DOMAIN,
     FLOOD_STAGES,
+    FLOW_PERCENTILE,
     HYDRO_SENSOR_TYPES,
     SENSOR_TYPES,
     SUMMARY_SENSOR_TYPES,
@@ -38,6 +40,7 @@ from .const import (
     TREND_RATE,
     WATER_LEVEL,
 )
+from .flow import flow_percentile
 from .thresholds import alarm_thresholds, datum_offset, suggest_thresholds
 
 _LOGGER = logging.getLogger(__name__)
@@ -133,6 +136,9 @@ class WaterlevelCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # What Hydro-Data publishes about the station, None until looked up: its
         # details, and reference levels in the same units as the Water Level sensor
         self.station_info: dict[str, Any] | None = entry.data.get(CONF_STATION_INFO)
+        # The station's flow percentiles ({"p50": m³/s, ...}): None until looked up,
+        # {} when Hydro-Data publishes none
+        self.flow_percentiles: dict[str, float] | None = entry.data.get(CONF_FLOW_PERCENTILES)
         # Flood thresholds start at the defaults (see default_thresholds) and are
         # overridden by the number entities
         self._thresholds: dict[str, float | None] = dict(self.default_thresholds()[0])
@@ -260,6 +266,27 @@ class WaterlevelCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._apply_default_thresholds()
         self.async_update_listeners()
 
+    async def async_load_flow_percentiles(self) -> None:
+        """Look up the station's flow percentiles from Hydro-Data, once.
+
+        They describe the station's whole record, so the result is kept in the config entry.
+        """
+        if self.flow_percentiles is not None or "discharge" not in self.available_sensors:
+            return
+        try:
+            percentiles = await self.api.flow_percentiles(self.station)
+        except StationNotFound:
+            percentiles = {}
+        except WaterlevelError as err:
+            # Try again next time the station is set up
+            _LOGGER.debug("Could not fetch flow percentiles for station %s: %s", self.station, err)
+            return
+        self.flow_percentiles = percentiles
+        self.hass.config_entries.async_update_entry(
+            self.config_entry,
+            data={**self.config_entry.data, CONF_FLOW_PERCENTILES: percentiles},
+        )
+
     @property
     def last_reading_time(self) -> datetime | None:
         """Time of the newest reading from any of the station's live sensors."""
@@ -334,6 +361,15 @@ class WaterlevelCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 _LOGGER.debug("Failed to fetch %s for station %s: %s", key, self.station, err)
                 readings = []
             data[key] = self._keep_reading(key, readings[-1] if readings else None)
+
+        if self.flow_percentiles and "discharge" in data:
+            data[FLOW_PERCENTILE] = flow_percentile(data["discharge"], self.flow_percentiles)
+            # The percentile is as old as the flow it comes from
+            self.sensor_attrs[FLOW_PERCENTILE] = {
+                k: v
+                for k, v in self.sensor_attrs.get("discharge", {}).items()
+                if k in ("last_reported", "stale")
+            }
 
         # Rate of change from the last few hours of water levels
         if week := self._week.get(WATER_LEVEL):
