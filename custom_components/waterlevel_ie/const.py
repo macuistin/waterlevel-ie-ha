@@ -106,6 +106,8 @@ EA_STATION_PAGE_URL = "https://check-for-flooding.service.gov.uk/station/{rloi_i
 
 # SEPA (Scotland) stations: the time series read, by SEPA's time series ids
 SOURCE_SEPA = "sepa"
+# SEPA limits anonymous access by a daily allowance, so its stations update half as often
+SEPA_SCAN_INTERVAL = 30
 CONF_LEVEL_TS = "level_ts"
 CONF_FLOW_TS = "flow_ts"
 SEPA_BASE_URL = "https://timeseries.sepa.org.uk/KiWIS/KiWIS"

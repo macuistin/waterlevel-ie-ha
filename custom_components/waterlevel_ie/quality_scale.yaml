@@ -8,7 +8,7 @@ rules:
   action-setup:
     status: exempt
     comment: The integration registers no actions
-  appropriate-polling: done    # 15 minutes, the gauges' own reporting interval, the OPW's requested limit the Environment Agency's shared feed and SEPA's daily allowance
+  appropriate-polling: done    # 15 minutes, the gauges' own reporting interval, the OPW's requested limit the Environment Agency's shared feed and SEPA's daily allowance (30 minutes for its stations)
   brands: done                 # icon and logo (light and dark) in brand/
   common-modules: done         # coordinator.py, entity.py, const.py
   config-flow-test-coverage: done  # every step, error and abort in tests/test_config_flow.py

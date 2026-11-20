@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from datetime import timedelta
+import json
+from pathlib import Path
 from typing import Any
 
 import aiohttp
@@ -23,6 +26,7 @@ from custom_components.waterlevel_ie.sepa_api import (
     parse_values,
 )
 
+PKG = Path(__file__).parents[1] / "custom_components" / "waterlevel_ie"
 LEVEL_TS = "57759010"
 FLOW_TS = "67777010"
 STATIONS = [
@@ -310,3 +314,31 @@ async def test_quota_error_keeps_the_last_reading(
     aioclient_mock.get(_url("getTimeseriesValues"), json={"message": "Quota exceeded"})
     await entry.runtime_data.async_refresh()
     assert hass.states.get("sensor.kilphedir_water_level").state == "1.3"
+
+
+async def test_stations_update_every_30_minutes(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
+) -> None:
+    """SEPA's anonymous daily allowance means half the usual polling rate."""
+    _mock_api(aioclient_mock)
+    entry = _entry(hass)
+    await _setup(hass, entry)
+    assert entry.runtime_data.update_interval == timedelta(minutes=30)
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    schema = {str(key): key for key in result["data_schema"].schema}
+    assert schema["scan_interval"].default() == 30
+    assert result["data_schema"].schema[schema["scan_interval"]].config["min"] == 30
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {"scan_interval": 60, "stale_hours": 3, "alert_stage": "watch"}
+    )
+    await hass.async_block_till_done()
+    assert entry.runtime_data.update_interval == timedelta(minutes=60)
+
+
+def test_setup_steps_warn_about_the_daily_limit() -> None:
+    strings = json.loads((PKG / "strings.json").read_text(encoding="utf-8"))
+    for step in ("scotland", "scotland_station"):
+        description = strings["config"]["step"][step]["description"]
+        assert "30 minutes" in description
+        assert "limit" in description

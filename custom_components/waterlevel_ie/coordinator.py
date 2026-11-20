@@ -34,6 +34,7 @@ from .const import (
     FLOOD_STAGES,
     FLOW_PERCENTILE,
     HYDRO_SENSOR_TYPES,
+    MIN_SCAN_INTERVAL,
     SENSOR_TYPES,
     STATION_PAGE_URL,
     SUMMARY_SENSOR_TYPES,
@@ -131,6 +132,9 @@ class StationCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     manufacturer: str = "OPW Ireland"
     # Limits of the flood threshold number entities, in metres
     threshold_limits: tuple[float, float] = (0.0, 15.0)
+    # Update interval in minutes: the default, and the shortest the options allow
+    default_scan_interval: int = DEFAULT_SCAN_INTERVAL
+    min_scan_interval: int = MIN_SCAN_INTERVAL
 
     def __init__(self, hass: HomeAssistant, entry: WaterlevelConfigEntry) -> None:
         self.station: str = entry.data[CONF_STATION]
@@ -168,7 +172,7 @@ class StationCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             config_entry=entry,
             name=f"{DOMAIN}_{self.device_key}",
             update_interval=timedelta(
-                minutes=entry.options.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
+                minutes=entry.options.get(CONF_SCAN_INTERVAL, self.default_scan_interval)
             ),
         )
 

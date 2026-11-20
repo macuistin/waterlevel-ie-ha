@@ -84,7 +84,7 @@
       },
       "scotland": {
         "title": "Find stations in Scotland",
-        "description": "Choose a location and search radius to look for SEPA river gauges. It starts at your home location.",
+        "description": "Choose a location and search radius to look for SEPA river gauges. It starts at your home location. Please note: SEPA limits how much data anonymous users can read each day, shared by everything on your internet address, and doesn't say whether regular polling is welcome. Scottish stations therefore update every 30 minutes, not 15. If the limit is reached, the stations keep their last readings and mark them stale until it resets.",
         "data": {
           "location": "Location"
         },
@@ -94,7 +94,7 @@
       },
       "scotland_station": {
         "title": "Choose a station",
-        "description": "SEPA gauge stations in that area, closest first. Stations you have already added are not listed.",
+        "description": "SEPA gauge stations in that area, closest first. Stations you have already added are not listed. Each updates every 30 minutes because of SEPA's daily data limit, which every station you add counts towards.",
         "data": {
           "station": "Station"
         },

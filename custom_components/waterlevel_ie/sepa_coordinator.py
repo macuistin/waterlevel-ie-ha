@@ -15,6 +15,7 @@ from .const import (
     CONF_LEVEL_TS,
     CONF_SUGGESTED_THRESHOLDS,
     DOMAIN,
+    SEPA_SCAN_INTERVAL,
     THRESHOLD_ENTITIES,
     TREND_RATE,
     WATER_LEVEL,
@@ -34,6 +35,9 @@ class SepaCoordinator(StationCoordinator):
     manufacturer = "SEPA"
     # Levels are in metres above Ordnance Datum, which can be high in the Highlands
     threshold_limits = (-50.0, 1500.0)
+    # SEPA limits anonymous access to a daily allowance, so update half as often
+    default_scan_interval = SEPA_SCAN_INTERVAL
+    min_scan_interval = SEPA_SCAN_INTERVAL
 
     def __init__(self, hass: HomeAssistant, entry: WaterlevelConfigEntry) -> None:
         super().__init__(hass, entry)

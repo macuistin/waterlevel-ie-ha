@@ -84,7 +84,7 @@
       },
       "scotland": {
         "title": "Aimsigh stáisiúin in Albain",
-        "description": "Roghnaigh áit agus ga cuardaigh chun tomhaiseoirí aibhneacha SEPA a aimsiú. Tosaíonn sé ag suíomh do bhaile.",
+        "description": "Roghnaigh áit agus ga cuardaigh chun tomhaiseoirí aibhneacha SEPA a aimsiú. Tosaíonn sé ag suíomh do bhaile. Tabhair faoi deara: cuireann SEPA teorainn leis an méid sonraí a fhéadann úsáideoirí gan chlárú a léamh gach lá, roinnte ag gach rud ar do sheoladh idirlín, agus ní deir sé an bhfuil fáilte roimh pholladh rialta. Mar sin nuashonraítear stáisiúin na hAlban gach 30 nóiméad, seachas gach 15. Má shroichtear an teorainn, coinníonn na stáisiúin a léamha deireanacha agus marcálann siad iad mar sheanchaite go dtí go athshocraítear í.",
         "data": {
           "location": "Suíomh"
         },
@@ -94,7 +94,7 @@
       },
       "scotland_station": {
         "title": "Roghnaigh stáisiún",
-        "description": "Stáisiúin tomhais SEPA sa limistéar sin, an ceann is gaire ar dtús. Ní liostaítear stáisiúin atá curtha leis cheana agat.",
+        "description": "Stáisiúin tomhais SEPA sa limistéar sin, an ceann is gaire ar dtús. Ní liostaítear stáisiúin atá curtha leis cheana agat. Nuashonraíonn gach ceann acu gach 30 nóiméad mar gheall ar theorainn laethúil sonraí SEPA, a chomhaireamhann gach stáisiún a chuireann tú leis.",
         "data": {
           "station": "Stáisiún"
         },

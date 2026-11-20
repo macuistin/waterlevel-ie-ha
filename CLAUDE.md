@@ -69,7 +69,8 @@ reason. Checks in brackets are tests in `tests/test_standards.py` unless named o
   used by every entry, lives in `hass.data`.
 - Don't poll waterlevel.ie more often than every 15 minutes (their API terms). The Environment
   Agency asks for one shared latest-readings call every 15 minutes, not one per station. SEPA
-  allows a daily credit allowance per IP address, so one small request per station per update.
+  allows a daily credit allowance per IP address, so its stations update every 30 minutes
+  (the default and the options' minimum) and the setup steps warn about the limit.
 - The config flow tests the station before it creates an entry, and the entry's unique id is
   the station, so a station can't be added twice. Setup raises `ConfigEntryNotReady` when the
   station can't be read at all.

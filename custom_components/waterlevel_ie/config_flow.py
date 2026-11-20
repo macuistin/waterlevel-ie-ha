@@ -59,6 +59,7 @@ from .const import (
     FLOOD_STAGES,
     GROUP_LIST_URL,
     MIN_SCAN_INTERVAL,
+    SEPA_SCAN_INTERVAL,
     SOURCE_EA,
     SOURCE_OPW,
     SOURCE_SEPA,
@@ -589,6 +590,19 @@ class WaterlevelOptionsFlow(config_entries.OptionsFlow):
     """Change how often a station updates and when it counts as stale."""
 
     @property
+    def _default_interval(self) -> int:
+        """The source's own update interval, which SEPA stations make longer."""
+        return SEPA_SCAN_INTERVAL if self._is_sepa else DEFAULT_SCAN_INTERVAL
+
+    @property
+    def _min_interval(self) -> int:
+        return SEPA_SCAN_INTERVAL if self._is_sepa else MIN_SCAN_INTERVAL
+
+    @property
+    def _is_sepa(self) -> bool:
+        return bool(self.config_entry.data.get(CONF_SOURCE) == SOURCE_SEPA)
+
+    @property
     def _is_opw(self) -> bool:
         """Only OPW stations can look for sensors again; the other sources' are fixed."""
         return bool(self.config_entry.data.get(CONF_SOURCE, SOURCE_OPW) == SOURCE_OPW)
@@ -626,10 +640,10 @@ class WaterlevelOptionsFlow(config_entries.OptionsFlow):
                 {
                     vol.Required(
                         CONF_SCAN_INTERVAL,
-                        default=saved.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL),
+                        default=saved.get(CONF_SCAN_INTERVAL, self._default_interval),
                     ): NumberSelector(
                         NumberSelectorConfig(
-                            min=MIN_SCAN_INTERVAL,
+                            min=self._min_interval,
                             max=180,
                             step=5,
                             unit_of_measurement="min",
