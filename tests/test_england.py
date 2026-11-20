@@ -297,10 +297,9 @@ async def test_setup_creates_a_device_with_the_same_entity_names(
     await _setup(hass, entry)
     assert entry.state is ConfigEntryState.LOADED
 
-    # Not async_get_device, which newer Home Assistant releases deprecate
-    (device,) = [
-        d for d in device_registry.devices.values() if (DOMAIN, "ea_3400TH") in d.identifiers
-    ]
+    # The device registry's lookups are deprecated in newer Home Assistant releases
+    (device,) = dr.async_entries_for_config_entry(device_registry, entry.entry_id)
+    assert device.identifiers == {(DOMAIN, "ea_3400TH")}
     assert device.manufacturer == "Environment Agency"
     assert device.model == "River gauge station"
     assert device.configuration_url == "https://check-for-flooding.service.gov.uk/station/7267"
