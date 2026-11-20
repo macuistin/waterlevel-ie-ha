@@ -204,8 +204,10 @@ async def test_setup_creates_a_device_with_the_same_entity_names(
     await _setup(hass, entry)
     assert entry.state is ConfigEntryState.LOADED
 
-    device = device_registry.async_get_device(identifiers={(DOMAIN, "sepa_234253")})
-    assert device is not None
+    # Not async_get_device, which newer Home Assistant releases deprecate
+    (device,) = [
+        d for d in device_registry.devices.values() if (DOMAIN, "sepa_234253") in d.identifiers
+    ]
     assert device.manufacturer == "SEPA"
     assert device.model == "River gauge station"
     assert device.configuration_url is None
