@@ -1,5 +1,5 @@
 {
-  "name": "Water Level IE",
+  "name": "Water Level Gauges",
   "content_in_root": false,
   "country": ["IE", "GB"],
   "homeassistant": "2025.2.0"

@@ -1,4 +1,4 @@
-# Water Level IE
+# Water Level Gauges
 
 Rules for AI assistants and contributors working in this repo.
 
@@ -7,7 +7,7 @@ Rules for AI assistants and contributors working in this repo.
 A Home Assistant custom integration, distributed through HACS, that reads OPW river gauge
 data published on waterlevel.ie Environment Agency (England) and SEPA (Scotland) river gauge data. It is
 unofficial: never present it as made or endorsed by waterlevel.ie, the OPW, the Environment
-Agency or SEPA, and never copy their logos. The display name is "Water Level IE";
+Agency or SEPA, and never copy their logos. The display name is "Water Level Gauges";
 the domain is `waterlevel_ie`.
 
 The repo holds the Platinum tier of the Home Assistant quality scale (and so Bronze, Silver

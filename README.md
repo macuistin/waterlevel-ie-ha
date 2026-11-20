@@ -1,11 +1,11 @@
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="custom_components/waterlevel_ie/brand/dark_logo.png">
-    <img src="custom_components/waterlevel_ie/brand/logo.png" alt="Water Level IE" height="96">
+    <img src="custom_components/waterlevel_ie/brand/logo.png" alt="Water Level Gauges" height="96">
   </picture>
 </p>
 
-# Water Level IE for Home Assistant
+# Water Level Gauges for Home Assistant
 
 [![HACS Custom](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://hacs.xyz/docs/faq/custom_repositories/)
 [![GitHub release](https://img.shields.io/github/v/release/macuistin/waterlevel-ie-ha)](https://github.com/macuistin/waterlevel-ie-ha/releases)
@@ -146,7 +146,7 @@ All entities expose `latitude` and `longitude` as state attributes. Stations app
 1. In Home Assistant, open **HACS → Integrations**
 2. Click the three-dot menu → **Custom repositories**
 3. Add `https://github.com/macuistin/waterlevel-ie-ha` as an **Integration**
-4. Search for "Water Level IE" and install it
+4. Search for "Water Level Gauges" and install it
 5. Restart Home Assistant
 
 ### Manual
@@ -162,7 +162,7 @@ All entities expose `latitude` and `longitude` as state attributes. Stations app
 After installation and restart:
 
 1. Go to **Settings → Devices & Services → Add Integration**
-2. Search for **Water Level IE**
+2. Search for **Water Level Gauges**
 3. Choose how to find the station:
    - **Find stations near a location**: starts at your home location; drag the pin or change the radius, then pick from the stations in that area, closest first
    - **Browse by river**: pick a river, then a station on it. Stations you've already added are left out of the list.
@@ -180,7 +180,7 @@ To add more stations, repeat from step 1 — each station is a separate integrat
 | Station | A gauge on that river, or in that area. Stations you've already added are left out |
 | Station number or address | The number from the station's waterlevel.ie page (`14029`, or `0000014029`), or the page's address |
 
-The flood thresholds are set on the device page after setup. Each station also has options, under **Settings → Devices & Services → Water Level IE → Configure**:
+The flood thresholds are set on the device page after setup. Each station also has options, under **Settings → Devices & Services → Water Level Gauges → Configure**:
 
 | Option | Default | What it does |
 |---|---|---|
@@ -341,15 +341,15 @@ automation:
 
 **Temperature, Battery Voltage or Signal Strength is missing.** They're disabled by default. Enable them from the device page.
 
-**Something else.** Download diagnostics from **Settings → Devices & Services → Water Level IE → ⋮ → Download diagnostics**, turn on debug logging from the same menu, reproduce the problem, and attach both to an [issue](https://github.com/macuistin/waterlevel-ie-ha/issues).
+**Something else.** Download diagnostics from **Settings → Devices & Services → Water Level Gauges → ⋮ → Download diagnostics**, turn on debug logging from the same menu, reproduce the problem, and attach both to an [issue](https://github.com/macuistin/waterlevel-ie-ha/issues).
 
 ---
 
 ## Removing the integration
 
-1. Go to **Settings → Devices & Services → Water Level IE**.
+1. Go to **Settings → Devices & Services → Water Level Gauges**.
 2. For each station, open the **⋮** menu and choose **Delete**. This removes the station's device and entities.
-3. To remove the code as well, uninstall **Water Level IE** in HACS (or delete `config/custom_components/waterlevel_ie/` for a manual install), then restart Home Assistant.
+3. To remove the code as well, uninstall **Water Level Gauges** in HACS (or delete `config/custom_components/waterlevel_ie/` for a manual install), then restart Home Assistant.
 
 ---
 

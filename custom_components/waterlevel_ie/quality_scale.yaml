@@ -1,4 +1,4 @@
-# Integration Quality Scale: Water Level IE
+# Integration Quality Scale: Water Level Gauges
 # https://developers.home-assistant.io/docs/core/integration-quality-scale/
 # Every rule, Bronze to Platinum, is done or exempt.
 # Each docs-* rule names the README.md heading that meets it (tests/test_standards.py checks).
@@ -17,7 +17,7 @@ rules:
   docs-actions:
     status: exempt
     comment: The integration registers no actions
-  docs-high-level-description: done  # README: Water Level IE for Home Assistant
+  docs-high-level-description: done  # README: Water Level Gauges for Home Assistant
   docs-installation-instructions: done  # README: Installation
   docs-removal-instructions: done  # README: Removing the integration
   entity-event-setup:

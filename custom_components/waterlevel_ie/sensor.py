@@ -1,4 +1,4 @@
-"""Sensor platform for Water Level IE."""
+"""Sensor platform for Water Level Gauges."""
 
 from __future__ import annotations
 

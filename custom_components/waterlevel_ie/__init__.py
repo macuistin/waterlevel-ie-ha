@@ -1,4 +1,4 @@
-"""Water Level IE: real-time Irish river gauge data from waterlevel.ie."""
+"""Water Level Gauges: real-time river gauge data for Ireland, England and Scotland."""
 
 from __future__ import annotations
 
