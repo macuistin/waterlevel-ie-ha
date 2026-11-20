@@ -38,12 +38,17 @@ from .api import StationNotFound, WaterlevelApi, WaterlevelError
 from .const import (
     CONF_ALERT_STAGE,
     CONF_AVAILABLE_SENSORS,
+    CONF_FLOW_MEASURE,
     CONF_LATITUDE,
+    CONF_LEVEL_MEASURE,
     CONF_LONGITUDE,
     CONF_REDETECT,
+    CONF_RLOI_ID,
     CONF_SCAN_INTERVAL,
+    CONF_SOURCE,
     CONF_STALE_HOURS,
     CONF_STATION,
+    CONF_STATION_INFO,
     CONF_STATION_NAME,
     DEFAULT_ALERT_STAGE,
     DEFAULT_SCAN_INTERVAL,
@@ -52,11 +57,17 @@ from .const import (
     FLOOD_STAGES,
     GROUP_LIST_URL,
     MIN_SCAN_INTERVAL,
+    SOURCE_EA,
+    SOURCE_OPW,
+    WATER_LEVEL,
 )
+from .ea_api import EnvironmentAgencyApi
 
 _LOGGER = logging.getLogger(__name__)
 CONF_GROUP = "group"
 DEFAULT_NEARBY_RADIUS = 15000  # metres
+# The Environment Agency search is limited to this distance, in km
+MAX_EA_DISTANCE_KM = 100
 
 
 def normalize_station(raw: str) -> str | None:
@@ -96,6 +107,27 @@ async def _detect_station(
     return result
 
 
+def _england_entry_data(station: dict[str, Any]) -> dict[str, Any]:
+    """The config entry data for an Environment Agency station from EnvironmentAgencyApi."""
+    available = [WATER_LEVEL] + (["discharge"] if station["flow_measure"] else [])
+    details = {"status": "active"}
+    if station["catchment"]:
+        details["catchment"] = station["catchment"]
+    return {
+        CONF_SOURCE: SOURCE_EA,
+        CONF_STATION: station["station"],
+        CONF_STATION_NAME: station["name"],
+        CONF_AVAILABLE_SENSORS: available,
+        CONF_LATITUDE: station["latitude"],
+        CONF_LONGITUDE: station["longitude"],
+        CONF_LEVEL_MEASURE: station["level_measure"],
+        CONF_FLOW_MEASURE: station["flow_measure"],
+        CONF_RLOI_ID: station["rloi_id"],
+        # The stage scale becomes the default flood thresholds (see thresholds.py)
+        CONF_STATION_INFO: {"details": details, "levels": station["stage_scale"]},
+    }
+
+
 class WaterlevelConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Config flow: choose how to find a station, then add it."""
 
@@ -113,11 +145,12 @@ class WaterlevelConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self._selected_group: str | None = None
         self._stations: dict[str, str] = {}
         self._distances: dict[str, float] = {}
+        self._ea_stations: dict[str, dict[str, Any]] = {}
 
     async def async_step_user(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """Ask whether to find stations nearby, browse by river, or type a station number."""
         return self.async_show_menu(
-            step_id="user", menu_options=["nearby", "river", "station_number"]
+            step_id="user", menu_options=["nearby", "river", "station_number", "england"]
         )
 
     async def async_step_nearby(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
@@ -186,6 +219,108 @@ class WaterlevelConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                                     label=f"{name} ({sid}), {self._distances[sid] / 1000:.1f} km",
                                 )
                                 for sid, name in self._stations.items()
+                            ],
+                            mode=SelectSelectorMode.DROPDOWN,
+                        )
+                    ),
+                }
+            ),
+            errors=errors,
+        )
+
+    async def async_step_england(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Pick a location and radius to look for Environment Agency stations in England."""
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            location = user_input[CONF_LOCATION]
+            try:
+                stations = await EnvironmentAgencyApi(
+                    async_get_clientsession(self.hass)
+                ).stations_near(
+                    location[CONF_LATITUDE],
+                    location[CONF_LONGITUDE],
+                    min(location[CONF_RADIUS] / 1000, MAX_EA_DISTANCE_KM),
+                )
+            except WaterlevelError as err:
+                _LOGGER.warning("Failed to fetch the Environment Agency station list: %s", err)
+                errors["base"] = "england_unreachable"
+            else:
+                configured = self._async_current_ids()
+                nearby = []
+                for station in stations:
+                    if f"{DOMAIN}_ea_{station['station']}" in configured:
+                        continue
+                    dist = distance(
+                        location[CONF_LATITUDE],
+                        location[CONF_LONGITUDE],
+                        station["latitude"],
+                        station["longitude"],
+                    )
+                    if dist is not None and dist <= location[CONF_RADIUS]:
+                        nearby.append((dist, station))
+                nearby.sort(key=lambda found: found[0])
+                if nearby:
+                    self._ea_stations = {station["station"]: station for _, station in nearby}
+                    self._distances = {station["station"]: dist for dist, station in nearby}
+                    return await self.async_step_england_station()
+                errors["base"] = "no_nearby_stations"
+        default = (user_input or {}).get(CONF_LOCATION) or {
+            CONF_LATITUDE: self.hass.config.latitude,
+            CONF_LONGITUDE: self.hass.config.longitude,
+            CONF_RADIUS: DEFAULT_NEARBY_RADIUS,
+        }
+        return self.async_show_form(
+            step_id="england",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(CONF_LOCATION, default=default): LocationSelector(
+                        LocationSelectorConfig(radius=True)
+                    ),
+                }
+            ),
+            errors=errors,
+        )
+
+    async def async_step_england_station(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Pick one of the Environment Agency stations found nearby, closest first."""
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            ref = user_input[CONF_STATION]
+            await self.async_set_unique_id(f"{DOMAIN}_ea_{ref}")
+            self._abort_if_unique_id_configured()
+            try:
+                # The station list leaves out some measures, so read the station itself
+                station = await EnvironmentAgencyApi(async_get_clientsession(self.hass)).station(
+                    ref
+                )
+            except StationNotFound:
+                errors[CONF_STATION] = "england_station_not_found"
+            except WaterlevelError:
+                errors["base"] = "england_unreachable"
+            else:
+                return self.async_create_entry(
+                    title=station["name"], data=_england_entry_data(station)
+                )
+        return self.async_show_form(
+            step_id="england_station",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(CONF_STATION): SelectSelector(
+                        SelectSelectorConfig(
+                            options=[
+                                SelectOptionDict(
+                                    value=ref,
+                                    label=(
+                                        f"{station['name']}"
+                                        f"{', ' + station['river'] if station['river'] else ''}"
+                                        f" ({ref}), {self._distances[ref] / 1000:.1f} km"
+                                    ),
+                                )
+                                for ref, station in self._ea_stations.items()
                             ],
                             mode=SelectSelectorMode.DROPDOWN,
                         )
@@ -333,6 +468,11 @@ class WaterlevelConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 class WaterlevelOptionsFlow(config_entries.OptionsFlow):
     """Change how often a station updates and when it counts as stale."""
 
+    @property
+    def _is_opw(self) -> bool:
+        """Only OPW stations can look for sensors again; the other sources' are fixed."""
+        return bool(self.config_entry.data.get(CONF_SOURCE, SOURCE_OPW) == SOURCE_OPW)
+
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         errors: dict[str, str] = {}
         if user_input is not None:
@@ -341,7 +481,7 @@ class WaterlevelOptionsFlow(config_entries.OptionsFlow):
                 CONF_STALE_HOURS: int(user_input[CONF_STALE_HOURS]),
                 CONF_ALERT_STAGE: user_input.get(CONF_ALERT_STAGE, DEFAULT_ALERT_STAGE),
             }
-            if user_input.get(CONF_REDETECT):
+            if user_input.get(CONF_REDETECT) and self._is_opw:
                 api = WaterlevelApi(async_get_clientsession(self.hass))
                 try:
                     _, available = await api.detect_station(self.config_entry.data[CONF_STATION])
@@ -398,7 +538,11 @@ class WaterlevelOptionsFlow(config_entries.OptionsFlow):
                             mode=SelectSelectorMode.LIST,
                         )
                     ),
-                    vol.Optional(CONF_REDETECT, default=False): BooleanSelector(),
+                    **(
+                        {vol.Optional(CONF_REDETECT, default=False): BooleanSelector()}
+                        if self._is_opw
+                        else {}
+                    ),
                 }
             ),
             errors=errors,

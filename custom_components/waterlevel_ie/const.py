@@ -83,3 +83,23 @@ DEFAULT_STALE_HOURS = 3
 # Lowest flood stage that turns the Flood Alert binary sensor on
 CONF_ALERT_STAGE = "alert_stage"
 DEFAULT_ALERT_STAGE = "watch"
+
+# Where a station's data comes from. Entries made before there were several sources
+# have no CONF_SOURCE and are OPW.
+CONF_SOURCE = "source"
+SOURCE_OPW = "opw"
+SOURCE_EA = "ea"
+# Environment Agency (England) stations: the measures read, the RLOI id its flood
+# warning pages use, and its stage scale
+CONF_LEVEL_MEASURE = "level_measure"
+CONF_FLOW_MEASURE = "flow_measure"
+CONF_RLOI_ID = "rloi_id"
+
+EA_BASE_URL = "https://environment.data.gov.uk/flood-monitoring"
+# The latest reading of every measure on every station, in one call. The API asks for
+# this rather than one call per station.
+EA_LATEST_URL = f"{EA_BASE_URL}/data/readings?latest&_limit=10000"
+EA_STATIONS_URL = f"{EA_BASE_URL}/id/stations"
+EA_STATION_URL = f"{EA_BASE_URL}/id/stations/{{ref}}"
+EA_READINGS_URL = f"{EA_BASE_URL}/id/measures/{{measure}}/readings"
+EA_STATION_PAGE_URL = "https://check-for-flooding.service.gov.uk/station/{rloi_id}"

@@ -1,6 +1,6 @@
 {
   "name": "Water Level IE",
   "content_in_root": false,
-  "country": "IE",
+  "country": ["IE", "GB"],
   "homeassistant": "2025.2.0"
 }

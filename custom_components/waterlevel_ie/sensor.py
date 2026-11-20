@@ -34,7 +34,7 @@ from .const import (
     TREND_RATE,
     WATER_LEVEL,
 )
-from .coordinator import WaterlevelConfigEntry, WaterlevelCoordinator
+from .coordinator import StationCoordinator, WaterlevelConfigEntry
 from .entity import WaterlevelEntity
 
 # Entities only read the coordinator's data, so updates need no limit
@@ -138,7 +138,7 @@ FLOOD_STAGE_DESCRIPTION = SensorEntityDescription(
 )
 
 # Where the default thresholds came from, best source first
-STATION_INFO_SOURCES = ["alarm_levels", "history", "fallback"]
+STATION_INFO_SOURCES = ["alarm_levels", "stage_scale", "history", "fallback"]
 
 STATION_INFO_DESCRIPTION = SensorEntityDescription(
     key="station_info",
@@ -195,7 +195,7 @@ class WaterlevelSensor(WaterlevelEntity, SensorEntity):
 
     def __init__(
         self,
-        coordinator: WaterlevelCoordinator,
+        coordinator: StationCoordinator,
         description: WaterlevelSensorEntityDescription,
     ) -> None:
         super().__init__(coordinator, description.key)
@@ -216,7 +216,7 @@ class WaterlevelSensor(WaterlevelEntity, SensorEntity):
 class FlowPercentileSensor(WaterlevelSensor):
     """How the current discharge compares with the station's record: 50 is the median."""
 
-    def __init__(self, coordinator: WaterlevelCoordinator) -> None:
+    def __init__(self, coordinator: StationCoordinator) -> None:
         super().__init__(coordinator, FLOW_PERCENTILE_DESCRIPTION)
 
     @property
@@ -239,7 +239,7 @@ class FloodStageSensor(WaterlevelEntity, SensorEntity):
 
     entity_description = FLOOD_STAGE_DESCRIPTION
 
-    def __init__(self, coordinator: WaterlevelCoordinator) -> None:
+    def __init__(self, coordinator: StationCoordinator) -> None:
         super().__init__(coordinator, "flood_stage")
 
     @property
@@ -281,7 +281,7 @@ class StationInfoSensor(WaterlevelEntity, SensorEntity):
 
     entity_description = STATION_INFO_DESCRIPTION
 
-    def __init__(self, coordinator: WaterlevelCoordinator) -> None:
+    def __init__(self, coordinator: StationCoordinator) -> None:
         super().__init__(coordinator, "station_info")
 
     @property
@@ -317,7 +317,7 @@ class StationInfoSensor(WaterlevelEntity, SensorEntity):
 class _FreshnessSensor(WaterlevelEntity, SensorEntity):
     """Reports on the station's last reading; usable during an outage, when it matters most."""
 
-    def __init__(self, coordinator: WaterlevelCoordinator, description: SensorEntityDescription):
+    def __init__(self, coordinator: StationCoordinator, description: SensorEntityDescription):
         super().__init__(coordinator, description.key)
         self.entity_description = description
 
@@ -329,7 +329,7 @@ class _FreshnessSensor(WaterlevelEntity, SensorEntity):
 class LastReadingSensor(_FreshnessSensor):
     """When the station last sent a reading."""
 
-    def __init__(self, coordinator: WaterlevelCoordinator) -> None:
+    def __init__(self, coordinator: StationCoordinator) -> None:
         super().__init__(coordinator, LAST_READING_DESCRIPTION)
 
     @property
@@ -340,7 +340,7 @@ class LastReadingSensor(_FreshnessSensor):
 class DataAgeSensor(_FreshnessSensor):
     """Minutes since the station last sent a reading, as of the last update."""
 
-    def __init__(self, coordinator: WaterlevelCoordinator) -> None:
+    def __init__(self, coordinator: StationCoordinator) -> None:
         super().__init__(coordinator, DATA_AGE_DESCRIPTION)
 
     @property

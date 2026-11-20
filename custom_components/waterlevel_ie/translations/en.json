@@ -7,7 +7,8 @@
         "menu_options": {
           "nearby": "Find stations near a location",
           "river": "Browse by river",
-          "station_number": "Enter a station number"
+          "station_number": "Enter a station number",
+          "england": "Find stations in England (Environment Agency)"
         }
       },
       "nearby": {
@@ -59,6 +60,26 @@
         "data_description": {
           "station": "The number shown on the station's waterlevel.ie page, or the page's address."
         }
+      },
+      "england": {
+        "title": "Find stations in England",
+        "description": "Choose a location and search radius to look for Environment Agency river gauges. It starts at your home location.",
+        "data": {
+          "location": "Location"
+        },
+        "data_description": {
+          "location": "Drag the pin or change the circle to search a different area."
+        }
+      },
+      "england_station": {
+        "title": "Choose a station",
+        "description": "Environment Agency gauge stations in that area, closest first. Stations you have already added are not listed.",
+        "data": {
+          "station": "Station"
+        },
+        "data_description": {
+          "station": "The gauge station to add. Each station becomes its own device."
+        }
       }
     },
     "error": {
@@ -67,7 +88,9 @@
       "station_not_found": "No sensor data found for that station. Check it exists on waterlevel.ie.",
       "no_stations": "No stations that you haven't already added were found on this river.",
       "no_nearby_stations": "No stations that you haven't already added were found in that area. Try a larger radius.",
-      "unknown": "Unexpected error. Check the Home Assistant logs."
+      "unknown": "Unexpected error. Check the Home Assistant logs.",
+      "england_unreachable": "Could not reach the Environment Agency flood-monitoring service. Check your internet connection and try again.",
+      "england_station_not_found": "No water level data was found for that station."
     },
     "abort": {
       "already_configured": "This station is already configured.",
@@ -173,7 +196,8 @@
         "state": {
           "alarm_levels": "Alarm levels",
           "history": "Station history",
-          "fallback": "Fallback values"
+          "fallback": "Fallback values",
+          "stage_scale": "Stage scale"
         },
         "state_attributes": {
           "exceeded_1_percent_level_m": {

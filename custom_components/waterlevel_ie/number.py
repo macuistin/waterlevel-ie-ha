@@ -8,7 +8,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import THRESHOLD_ENTITIES, WATER_LEVEL
-from .coordinator import WaterlevelConfigEntry, WaterlevelCoordinator
+from .coordinator import StationCoordinator, WaterlevelConfigEntry
 from .entity import WaterlevelEntity
 
 # Setting a threshold makes no request, so there is nothing to limit
@@ -43,15 +43,15 @@ class WaterlevelThresholdNumber(WaterlevelEntity, RestoreNumber):
 
     def __init__(
         self,
-        coordinator: WaterlevelCoordinator,
+        coordinator: StationCoordinator,
         threshold_key: str,
         cfg: dict[str, float],
     ) -> None:
         super().__init__(coordinator, f"{threshold_key}_threshold")
         self._threshold_key = threshold_key
         self._attr_translation_key = f"{threshold_key}_level"
-        self._attr_native_min_value = cfg["min"]
-        self._attr_native_max_value = cfg["max"]
+        # OPW's limits are fixed; other sources report levels on other datums
+        self._attr_native_min_value, self._attr_native_max_value = coordinator.threshold_limits
 
     @property
     def available(self) -> bool:

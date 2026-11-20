@@ -15,7 +15,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import SENSOR_TYPES, WATER_LEVEL
-from .coordinator import WaterlevelConfigEntry, WaterlevelCoordinator
+from .coordinator import StationCoordinator, WaterlevelConfigEntry
 from .entity import WaterlevelEntity
 
 # Entities only read the coordinator's data, so updates need no limit
@@ -45,7 +45,7 @@ class FloodAlertBinarySensor(WaterlevelEntity, BinarySensorEntity):
     _attr_translation_key = "flood_alert"
     _attr_device_class = BinarySensorDeviceClass.SAFETY
 
-    def __init__(self, coordinator: WaterlevelCoordinator) -> None:
+    def __init__(self, coordinator: StationCoordinator) -> None:
         super().__init__(coordinator, "flood_alert")
 
     @property
@@ -71,7 +71,7 @@ class DataStaleBinarySensor(WaterlevelEntity, BinarySensorEntity):
     _attr_device_class = BinarySensorDeviceClass.PROBLEM
     _attr_entity_category = EntityCategory.DIAGNOSTIC
 
-    def __init__(self, coordinator: WaterlevelCoordinator) -> None:
+    def __init__(self, coordinator: StationCoordinator) -> None:
         super().__init__(coordinator, "data_stale")
 
     @property

@@ -7,7 +7,8 @@
         "menu_options": {
           "nearby": "Aimsigh stáisiúin in aice le háit",
           "river": "Brabhsáil de réir abhann",
-          "station_number": "Iontráil uimhir stáisiúin"
+          "station_number": "Iontráil uimhir stáisiúin",
+          "england": "Aimsigh stáisiúin i Sasana (an Ghníomhaireacht Comhshaoil)"
         }
       },
       "nearby": {
@@ -59,6 +60,26 @@
         "data_description": {
           "station": "An uimhir atá ar leathanach waterlevel.ie an stáisiúin, nó seoladh an leathanaigh."
         }
+      },
+      "england": {
+        "title": "Aimsigh stáisiúin i Sasana",
+        "description": "Roghnaigh áit agus ga cuardaigh chun tomhaiseoirí aibhneacha na Gníomhaireachta Comhshaoil a aimsiú. Tosaíonn sé ag suíomh do bhaile.",
+        "data": {
+          "location": "Suíomh"
+        },
+        "data_description": {
+          "location": "Tarraing an biorán nó athraigh an ciorcal chun limistéar eile a chuardach."
+        }
+      },
+      "england_station": {
+        "title": "Roghnaigh stáisiún",
+        "description": "Stáisiúin tomhais na Gníomhaireachta Comhshaoil sa limistéar sin, an ceann is gaire ar dtús. Ní liostaítear stáisiúin atá curtha leis cheana agat.",
+        "data": {
+          "station": "Stáisiún"
+        },
+        "data_description": {
+          "station": "An stáisiún tomhais le cur leis. Is gléas ar leith gach stáisiún."
+        }
       }
     },
     "error": {
@@ -67,7 +88,9 @@
       "station_not_found": "Níor aimsíodh aon sonraí braiteora don stáisiún sin. Seiceáil go bhfuil sé ar waterlevel.ie.",
       "no_stations": "Níor aimsíodh aon stáisiún ar an abhainn seo nach bhfuil curtha leis cheana agat.",
       "no_nearby_stations": "Níor aimsíodh aon stáisiún sa limistéar sin nach bhfuil curtha leis cheana agat. Bain triail as ga níos mó.",
-      "unknown": "Earráid gan choinne. Seiceáil logaí Home Assistant."
+      "unknown": "Earráid gan choinne. Seiceáil logaí Home Assistant.",
+      "england_unreachable": "Níorbh fhéidir teacht ar sheirbhís monatóireachta tuilte na Gníomhaireachta Comhshaoil. Seiceáil do cheangal idirlín agus bain triail eile as.",
+      "england_station_not_found": "Ní bhfuarthas aon sonraí leibhéal uisce don stáisiún sin."
     },
     "abort": {
       "already_configured": "Tá an stáisiún seo cumraithe cheana.",
@@ -173,7 +196,8 @@
         "state": {
           "alarm_levels": "Leibhéil rabhaidh",
           "history": "Stair an stáisiúin",
-          "fallback": "Luachanna cúltaca"
+          "fallback": "Luachanna cúltaca",
+          "stage_scale": "Scála céime"
         },
         "state_attributes": {
           "exceeded_1_percent_level_m": {

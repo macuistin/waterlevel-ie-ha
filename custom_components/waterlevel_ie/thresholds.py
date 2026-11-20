@@ -63,3 +63,29 @@ def suggest_thresholds(daily_means: list[Reading], offset: float) -> dict[str, f
     result["typical"] = round(median(levels), 2)
     result["record"] = round(max(levels), 2)
     return result
+
+
+# How far from a station's typical high level to its highest recent level each stage sits
+STAGE_SCALE_FRACTIONS = {"watch": 0.5, "alert": 0.8, "serious": 1.0}
+
+
+def stage_scale_thresholds(levels: dict[str, float]) -> dict[str, float] | None:
+    """Watch / alert / serious levels from an Environment Agency stage scale.
+
+    The stage scale gives the top of the typical range (the level exceeded 5% of the
+    time) and the highest level of the last few years. Serious is that highest recent
+    level; watch and alert are halfway, and four fifths of the way, up from the typical
+    high to it. They are starting points, and the threshold numbers override them.
+    Returns None without both levels, or if the highest is not above the typical high.
+    """
+    try:
+        typical = levels["typical_high"]
+        highest = levels["highest_recent"]
+    except KeyError:
+        return None
+    if highest <= typical:
+        return None
+    return {
+        stage: round(typical + (highest - typical) * fraction, 2)
+        for stage, fraction in STAGE_SCALE_FRACTIONS.items()
+    }

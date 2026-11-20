@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 import aiohttp
 from homeassistant import config_entries
+from homeassistant.const import CONF_LOCATION, CONF_RADIUS
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
 import pytest
@@ -11,7 +14,14 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 from pytest_homeassistant_custom_component.test_util.aiohttp import AiohttpClientMocker
 
 from custom_components.waterlevel_ie.config_flow import normalize_station
-from custom_components.waterlevel_ie.const import DOMAIN, GEOJSON_URL
+from custom_components.waterlevel_ie.const import (
+    DOMAIN,
+    EA_STATION_URL,
+    EA_STATIONS_URL,
+    GEOJSON_URL,
+)
+
+from .test_england import LEVEL, MEASURES, SCALE, _entry, station_json
 
 pytestmark = pytest.mark.usefixtures("mock_setup_entry")
 
@@ -72,7 +82,7 @@ async def test_menu(hass: HomeAssistant) -> None:
         DOMAIN, context={"source": config_entries.SOURCE_USER}
     )
     assert result["type"] is FlowResultType.MENU
-    assert result["menu_options"] == ["nearby", "river", "station_number"]
+    assert result["menu_options"] == ["nearby", "river", "station_number", "england"]
 
 
 async def test_station_number_creates_entry(
@@ -369,3 +379,107 @@ async def test_nearby_cannot_connect(
     )
     assert result["step_id"] == "nearby"
     assert result["errors"] == {"base": "cannot_connect"}
+
+
+# --- config flow -----------------------------------------------------------------------
+
+LOCATION = {CONF_LOCATION: {"latitude": 51.415, "longitude": -0.309, CONF_RADIUS: 5000}}
+
+
+async def _start_england(hass: HomeAssistant) -> str:
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"next_step_id": "england"}
+    )
+    assert result["step_id"] == "england"
+    return result["flow_id"]
+
+
+async def test_england_flow_creates_an_entry(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker, mock_setup_entry: Any
+) -> None:
+    far = station_json(stationReference="FAR", label="Far away", lat=51.9)
+    aioclient_mock.get(EA_STATIONS_URL, json={"items": [station_json(), far]})
+    aioclient_mock.get(EA_STATION_URL.format(ref="3400TH"), json={"items": station_json()})
+    flow_id = await _start_england(hass)
+    result = await hass.config_entries.flow.async_configure(flow_id, LOCATION)
+    assert result["step_id"] == "england_station"
+    # The station outside the radius is not listed
+    options = result["data_schema"].schema["station"].config["options"]
+    assert [o["value"] for o in options] == ["3400TH"]
+    assert "River Thames" in options[0]["label"]
+
+    result = await hass.config_entries.flow.async_configure(flow_id, {"station": "3400TH"})
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["title"] == "Kingston"
+    assert result["data"]["source"] == "ea"
+    assert result["data"]["available_sensors"] == ["0001", "discharge"]
+    assert result["data"]["level_measure"] == LEVEL
+    assert result["data"]["station_info"]["levels"] == SCALE
+    assert result["result"].unique_id == f"{DOMAIN}_ea_3400TH"
+
+
+async def test_england_flow_without_flow_or_catchment(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker, mock_setup_entry: Any
+) -> None:
+    plain = station_json(measures=MEASURES[:2], catchmentName=None, riverName=None)
+    aioclient_mock.get(EA_STATIONS_URL, json={"items": [plain]})
+    aioclient_mock.get(EA_STATION_URL.format(ref="3400TH"), json={"items": plain})
+    flow_id = await _start_england(hass)
+    result = await hass.config_entries.flow.async_configure(flow_id, LOCATION)
+    result = await hass.config_entries.flow.async_configure(flow_id, {"station": "3400TH"})
+    assert result["data"]["available_sensors"] == ["0001"]
+    assert result["data"]["station_info"]["details"] == {"status": "active"}
+
+
+async def test_england_flow_skips_configured_stations(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
+) -> None:
+    _entry(hass)
+    aioclient_mock.get(EA_STATIONS_URL, json={"items": [station_json()]})
+    flow_id = await _start_england(hass)
+    result = await hass.config_entries.flow.async_configure(flow_id, LOCATION)
+    assert result["step_id"] == "england"
+    assert result["errors"] == {"base": "no_nearby_stations"}
+
+
+async def test_england_flow_nothing_nearby(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
+) -> None:
+    aioclient_mock.get(EA_STATIONS_URL, json={"items": []})
+    flow_id = await _start_england(hass)
+    result = await hass.config_entries.flow.async_configure(flow_id, LOCATION)
+    assert result["errors"] == {"base": "no_nearby_stations"}
+
+
+async def test_england_flow_cannot_connect(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
+) -> None:
+    aioclient_mock.get(EA_STATIONS_URL, exc=aiohttp.ClientError("down"))
+    flow_id = await _start_england(hass)
+    result = await hass.config_entries.flow.async_configure(flow_id, LOCATION)
+    assert result["errors"] == {"base": "england_unreachable"}
+
+
+@pytest.mark.parametrize(
+    ("kwargs", "errors"),
+    [
+        ({"status": 404}, {"station": "england_station_not_found"}),
+        ({"exc": aiohttp.ClientError("down")}, {"base": "england_unreachable"}),
+    ],
+)
+async def test_england_station_errors_stay_on_the_step(
+    hass: HomeAssistant,
+    aioclient_mock: AiohttpClientMocker,
+    kwargs: dict[str, Any],
+    errors: dict[str, str],
+) -> None:
+    aioclient_mock.get(EA_STATIONS_URL, json={"items": [station_json()]})
+    aioclient_mock.get(EA_STATION_URL.format(ref="3400TH"), **kwargs)
+    flow_id = await _start_england(hass)
+    await hass.config_entries.flow.async_configure(flow_id, LOCATION)
+    result = await hass.config_entries.flow.async_configure(flow_id, {"station": "3400TH"})
+    assert result["step_id"] == "england_station"
+    assert result["errors"] == errors
