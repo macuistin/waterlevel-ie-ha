@@ -1,7 +1,7 @@
 blueprint:
-  name: River flood warning (Water Level IE)
+  name: River flood warning (Water Level Gauges)
   description: >-
-    Runs your actions when a Water Level IE station's flood stage rises to a level
+    Runs your actions when a Water Level Gauges station's flood stage rises to a level
     you choose, or when the river is rising faster than a rate you set.
     Not an official flood warning: always check floodinfo.ie and Met Éireann.
   domain: automation

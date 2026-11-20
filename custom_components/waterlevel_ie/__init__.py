@@ -1,4 +1,4 @@
-"""Water Level IE: real-time Irish river gauge data from waterlevel.ie."""
+"""Water Level Gauges: real-time river gauge data for Ireland, England and Scotland."""
 
 from __future__ import annotations
 
@@ -8,17 +8,28 @@ from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryNotReady
 
-from .const import CONF_AVAILABLE_SENSORS, CONF_SOURCE, DOMAIN, SOURCE_EA, SOURCE_OPW
+from .const import (
+    CONF_AVAILABLE_SENSORS,
+    CONF_SOURCE,
+    DOMAIN,
+    SOURCE_EA,
+    SOURCE_OPW,
+    SOURCE_SEPA,
+)
 from .coordinator import StationCoordinator, WaterlevelConfigEntry, WaterlevelCoordinator
 from .ea_coordinator import EnvironmentAgencyCoordinator
+from .sepa_coordinator import SepaCoordinator
 
 PLATFORMS = [Platform.SENSOR, Platform.BINARY_SENSOR, Platform.NUMBER]
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: WaterlevelConfigEntry) -> bool:
     coordinator: StationCoordinator
-    if entry.data.get(CONF_SOURCE, SOURCE_OPW) == SOURCE_EA:
+    source = entry.data.get(CONF_SOURCE, SOURCE_OPW)
+    if source == SOURCE_EA:
         coordinator = EnvironmentAgencyCoordinator(hass, entry)
+    elif source == SOURCE_SEPA:
+        coordinator = SepaCoordinator(hass, entry)
     else:
         coordinator = WaterlevelCoordinator(hass, entry)
         # Before the first update, so the percentile has its flows from the start
@@ -43,6 +54,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: WaterlevelConfigEntry) -
     if isinstance(coordinator, WaterlevelCoordinator):
         entry.async_create_background_task(
             hass, _async_load_history(coordinator), f"{DOMAIN} history"
+        )
+    elif isinstance(coordinator, SepaCoordinator):
+        entry.async_create_background_task(
+            hass, coordinator.async_load_suggested_thresholds(), f"{DOMAIN} history"
         )
     return True
 

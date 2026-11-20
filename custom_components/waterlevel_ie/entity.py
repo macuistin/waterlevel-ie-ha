@@ -1,4 +1,4 @@
-"""Base entity for Water Level IE."""
+"""Base entity for Water Level Gauges."""
 
 from __future__ import annotations
 

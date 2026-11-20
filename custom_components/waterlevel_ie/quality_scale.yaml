@@ -1,4 +1,4 @@
-# Integration Quality Scale: Water Level IE
+# Integration Quality Scale: Water Level Gauges
 # https://developers.home-assistant.io/docs/core/integration-quality-scale/
 # Every rule, Bronze to Platinum, is done or exempt.
 # Each docs-* rule names the README.md heading that meets it (tests/test_standards.py checks).
@@ -8,7 +8,7 @@ rules:
   action-setup:
     status: exempt
     comment: The integration registers no actions
-  appropriate-polling: done    # 15 minutes, the gauges' own reporting interval, the OPW's requested limit and the Environment Agency's shared feed
+  appropriate-polling: done    # 15 minutes, the gauges' own reporting interval, the OPW's requested limit the Environment Agency's shared feed and SEPA's daily allowance (30 minutes for its stations)
   brands: done                 # icon and logo (light and dark) in brand/
   common-modules: done         # coordinator.py, entity.py, const.py
   config-flow-test-coverage: done  # every step, error and abort in tests/test_config_flow.py
@@ -17,7 +17,7 @@ rules:
   docs-actions:
     status: exempt
     comment: The integration registers no actions
-  docs-high-level-description: done  # README: Water Level IE for Home Assistant
+  docs-high-level-description: done  # README: Water Level Gauges for Home Assistant
   docs-installation-instructions: done  # README: Installation
   docs-removal-instructions: done  # README: Removing the integration
   entity-event-setup:

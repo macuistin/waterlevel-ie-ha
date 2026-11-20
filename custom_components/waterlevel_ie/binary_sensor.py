@@ -1,4 +1,4 @@
-"""Binary sensor platform for Water Level IE: flood alert on/off."""
+"""Binary sensor platform for Water Level Gauges: flood alert on/off."""
 
 from __future__ import annotations
 

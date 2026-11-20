@@ -1,4 +1,4 @@
-"""Number platform for Water Level IE: adjustable flood thresholds."""
+"""Number platform for Water Level Gauges: adjustable flood thresholds."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""Diagnostics for Water Level IE.
+"""Diagnostics for Water Level Gauges.
 
 Everything here is public data about an OPW gauge station, so nothing is redacted.
 """

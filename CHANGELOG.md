@@ -6,10 +6,12 @@ What each release changed, newest first.
 
 **Added**
 - **England stations**, from the Environment Agency's real-time flood-monitoring API (Open Government Licence). A new **Find stations in England (Environment Agency)** option when adding a station finds gauges near a location. Each is its own device type (manufacturer Environment Agency) with the same entity names as an Irish station: Water Level, Water Level Trend, Discharge where measured, Flood Stage, Flood Alert, the three thresholds, Station Information, Last Reading, Data Age and Data Stale. Flood thresholds start from the station's stage scale; a station without one leaves the flood entities unknown until you set thresholds. See [Supported stations](README.md#supported-stations).
+- **Scotland stations**, from SEPA's time series API (Open Government Licence, no account). A new **Find stations in Scotland (SEPA)** option finds gauges near a location. They are a device type of their own (manufacturer SEPA) with the same entity names as an Irish station, and flood thresholds start from the percentiles of the station's own daily record. Scottish stations update every 30 minutes (the options won't go lower), and the setup steps warn about SEPA's daily limit on anonymous access per IP address. See [Supported stations](README.md#supported-stations).
 - A Station Information state `stage_scale`, with an Irish translation (a first draft, corrections welcome).
 - **Flow Percentile** sensor: where the current Discharge sits in the station's flow record, from the flow percentiles OPW Hydro-Data publishes, where 50 is the median. It appears at stations that have Discharge and a published flow record, and comes with an Irish translation. See [Flow percentile](README.md#flow-percentile).
 
 **Changed**
+- The integration is now called **Water Level Gauges**, since it is no longer Irish only. Only the display name and logo change: the domain `waterlevel_ie`, unique ids, entity ids and device names are unchanged, so nothing needs redoing. The Integrations page and HACS show the new name.
 - `hacs.json` `country` is now `IE` and `GB`, as the integration reads English stations as well as Irish ones.
 - Internally, the readings, thresholds and flood-stage code every source shares is now a `StationCoordinator` base class that the Irish and English coordinators extend. Irish stations, their entity ids and unique ids are unchanged.
 

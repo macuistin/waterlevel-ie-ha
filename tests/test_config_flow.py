@@ -22,6 +22,7 @@ from custom_components.waterlevel_ie.const import (
 )
 
 from .test_england import LEVEL, MEASURES, SCALE, _entry, station_json
+from .test_sepa import LOCATION as SEPA_LOCATION, STATIONS as SEPA_STATIONS, _url as sepa_url
 
 pytestmark = pytest.mark.usefixtures("mock_setup_entry")
 
@@ -82,7 +83,13 @@ async def test_menu(hass: HomeAssistant) -> None:
         DOMAIN, context={"source": config_entries.SOURCE_USER}
     )
     assert result["type"] is FlowResultType.MENU
-    assert result["menu_options"] == ["nearby", "river", "station_number", "england"]
+    assert result["menu_options"] == [
+        "nearby",
+        "river",
+        "station_number",
+        "england",
+        "scotland",
+    ]
 
 
 async def test_station_number_creates_entry(
@@ -482,4 +489,94 @@ async def test_england_station_errors_stay_on_the_step(
     await hass.config_entries.flow.async_configure(flow_id, LOCATION)
     result = await hass.config_entries.flow.async_configure(flow_id, {"station": "3400TH"})
     assert result["step_id"] == "england_station"
+    assert result["errors"] == errors
+
+
+# --- Scotland (SEPA) ---------------------------------------------------------------------
+
+
+async def _start_scotland(hass: HomeAssistant) -> str:
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"next_step_id": "scotland"}
+    )
+    assert result["step_id"] == "scotland"
+    return result["flow_id"]
+
+
+async def test_scotland_flow_creates_an_entry(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker, mock_setup_entry: Any
+) -> None:
+    aioclient_mock.get(sepa_url("getStationList"), json=SEPA_STATIONS)
+    flow_id = await _start_scotland(hass)
+    result = await hass.config_entries.flow.async_configure(flow_id, SEPA_LOCATION)
+    assert result["step_id"] == "scotland_station"
+    options = result["data_schema"].schema["station"].config["options"]
+    assert [o["value"] for o in options] == ["234253"]
+    assert "Helmsdale" in options[0]["label"]
+
+    aioclient_mock.clear_requests()
+    aioclient_mock.get(
+        sepa_url("getTimeseriesList"), json=[["ts_id", "station_no"], ["57759010", "234253"]]
+    )
+    result = await hass.config_entries.flow.async_configure(flow_id, {"station": "234253"})
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["title"] == "Kilphedir"
+    assert result["data"]["source"] == "sepa"
+    assert result["data"]["level_ts"] == "57759010"
+    assert result["result"].unique_id == f"{DOMAIN}_sepa_234253"
+
+
+async def test_scotland_flow_nothing_nearby(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
+) -> None:
+    aioclient_mock.get(sepa_url("getStationList"), json=SEPA_STATIONS)
+    flow_id = await _start_scotland(hass)
+    far = {CONF_LOCATION: {"latitude": 50.0, "longitude": 0.0, CONF_RADIUS: 1000}}
+    result = await hass.config_entries.flow.async_configure(flow_id, far)
+    assert result["errors"] == {"base": "no_nearby_stations"}
+
+
+async def test_scotland_flow_skips_configured_stations(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
+) -> None:
+    from .test_sepa import _entry as sepa_entry
+
+    sepa_entry(hass)
+    aioclient_mock.get(sepa_url("getStationList"), json=SEPA_STATIONS)
+    flow_id = await _start_scotland(hass)
+    result = await hass.config_entries.flow.async_configure(flow_id, SEPA_LOCATION)
+    assert result["errors"] == {"base": "no_nearby_stations"}
+
+
+async def test_scotland_flow_cannot_connect(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
+) -> None:
+    aioclient_mock.get(sepa_url("getStationList"), exc=aiohttp.ClientError("down"))
+    flow_id = await _start_scotland(hass)
+    result = await hass.config_entries.flow.async_configure(flow_id, SEPA_LOCATION)
+    assert result["errors"] == {"base": "scotland_unreachable"}
+
+
+@pytest.mark.parametrize(
+    ("kwargs", "errors"),
+    [
+        ({"json": [["ts_id", "station_no"]]}, {"station": "scotland_station_not_found"}),
+        ({"exc": aiohttp.ClientError("down")}, {"base": "scotland_unreachable"}),
+    ],
+)
+async def test_scotland_station_errors_stay_on_the_step(
+    hass: HomeAssistant,
+    aioclient_mock: AiohttpClientMocker,
+    kwargs: dict[str, Any],
+    errors: dict[str, str],
+) -> None:
+    aioclient_mock.get(sepa_url("getStationList"), json=SEPA_STATIONS)
+    flow_id = await _start_scotland(hass)
+    await hass.config_entries.flow.async_configure(flow_id, SEPA_LOCATION)
+    aioclient_mock.get(sepa_url("getTimeseriesList"), **kwargs)
+    result = await hass.config_entries.flow.async_configure(flow_id, {"station": "234253"})
+    assert result["step_id"] == "scotland_station"
     assert result["errors"] == errors
