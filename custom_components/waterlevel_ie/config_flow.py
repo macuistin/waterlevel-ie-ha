@@ -39,8 +39,10 @@ from .const import (
     CONF_ALERT_STAGE,
     CONF_AVAILABLE_SENSORS,
     CONF_FLOW_MEASURE,
+    CONF_FLOW_TS,
     CONF_LATITUDE,
     CONF_LEVEL_MEASURE,
+    CONF_LEVEL_TS,
     CONF_LONGITUDE,
     CONF_REDETECT,
     CONF_RLOI_ID,
@@ -59,9 +61,11 @@ from .const import (
     MIN_SCAN_INTERVAL,
     SOURCE_EA,
     SOURCE_OPW,
+    SOURCE_SEPA,
     WATER_LEVEL,
 )
 from .ea_api import EnvironmentAgencyApi
+from .sepa_api import SepaApi
 
 _LOGGER = logging.getLogger(__name__)
 CONF_GROUP = "group"
@@ -128,6 +132,23 @@ def _england_entry_data(station: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _scotland_entry_data(
+    station: dict[str, Any], level_ts: str, flow_ts: str | None
+) -> dict[str, Any]:
+    """The config entry data for a SEPA station and its time series."""
+    return {
+        CONF_SOURCE: SOURCE_SEPA,
+        CONF_STATION: station["station"],
+        CONF_STATION_NAME: station["name"],
+        CONF_AVAILABLE_SENSORS: [WATER_LEVEL] + (["discharge"] if flow_ts else []),
+        CONF_LATITUDE: station["latitude"],
+        CONF_LONGITUDE: station["longitude"],
+        CONF_LEVEL_TS: level_ts,
+        CONF_FLOW_TS: flow_ts,
+        CONF_STATION_INFO: {"details": {"river": station["river"]} if station["river"] else {}},
+    }
+
+
 class WaterlevelConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Config flow: choose how to find a station, then add it."""
 
@@ -146,11 +167,13 @@ class WaterlevelConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self._stations: dict[str, str] = {}
         self._distances: dict[str, float] = {}
         self._ea_stations: dict[str, dict[str, Any]] = {}
+        self._sepa_stations: dict[str, dict[str, Any]] = {}
 
     async def async_step_user(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """Ask whether to find stations nearby, browse by river, or type a station number."""
         return self.async_show_menu(
-            step_id="user", menu_options=["nearby", "river", "station_number", "england"]
+            step_id="user",
+            menu_options=["nearby", "river", "station_number", "england", "scotland"],
         )
 
     async def async_step_nearby(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
@@ -321,6 +344,103 @@ class WaterlevelConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                                     ),
                                 )
                                 for ref, station in self._ea_stations.items()
+                            ],
+                            mode=SelectSelectorMode.DROPDOWN,
+                        )
+                    ),
+                }
+            ),
+            errors=errors,
+        )
+
+    async def async_step_scotland(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Pick a location and radius to look for SEPA stations in Scotland."""
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            location = user_input[CONF_LOCATION]
+            try:
+                stations = await SepaApi(async_get_clientsession(self.hass)).stations()
+            except WaterlevelError as err:
+                _LOGGER.warning("Failed to fetch the SEPA station list: %s", err)
+                errors["base"] = "scotland_unreachable"
+            else:
+                configured = self._async_current_ids()
+                nearby = []
+                for station in stations:
+                    if f"{DOMAIN}_sepa_{station['station']}" in configured:
+                        continue
+                    dist = distance(
+                        location[CONF_LATITUDE],
+                        location[CONF_LONGITUDE],
+                        station["latitude"],
+                        station["longitude"],
+                    )
+                    if dist is not None and dist <= location[CONF_RADIUS]:
+                        nearby.append((dist, station))
+                nearby.sort(key=lambda found: found[0])
+                if nearby:
+                    self._sepa_stations = {station["station"]: station for _, station in nearby}
+                    self._distances = {station["station"]: dist for dist, station in nearby}
+                    return await self.async_step_scotland_station()
+                errors["base"] = "no_nearby_stations"
+        default = (user_input or {}).get(CONF_LOCATION) or {
+            CONF_LATITUDE: self.hass.config.latitude,
+            CONF_LONGITUDE: self.hass.config.longitude,
+            CONF_RADIUS: DEFAULT_NEARBY_RADIUS,
+        }
+        return self.async_show_form(
+            step_id="scotland",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(CONF_LOCATION, default=default): LocationSelector(
+                        LocationSelectorConfig(radius=True)
+                    ),
+                }
+            ),
+            errors=errors,
+        )
+
+    async def async_step_scotland_station(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Pick one of the SEPA stations found nearby, closest first."""
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            ref = user_input[CONF_STATION]
+            await self.async_set_unique_id(f"{DOMAIN}_sepa_{ref}")
+            self._abort_if_unique_id_configured()
+            try:
+                level_ts, flow_ts = await SepaApi(
+                    async_get_clientsession(self.hass)
+                ).station_series(ref)
+            except StationNotFound:
+                errors[CONF_STATION] = "scotland_station_not_found"
+            except WaterlevelError:
+                errors["base"] = "scotland_unreachable"
+            else:
+                station = self._sepa_stations[ref]
+                return self.async_create_entry(
+                    title=station["name"],
+                    data=_scotland_entry_data(station, level_ts, flow_ts),
+                )
+        return self.async_show_form(
+            step_id="scotland_station",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(CONF_STATION): SelectSelector(
+                        SelectSelectorConfig(
+                            options=[
+                                SelectOptionDict(
+                                    value=ref,
+                                    label=(
+                                        f"{station['name']}"
+                                        f"{', ' + station['river'] if station['river'] else ''}"
+                                        f" ({ref}), {self._distances[ref] / 1000:.1f} km"
+                                    ),
+                                )
+                                for ref, station in self._sepa_stations.items()
                             ],
                             mode=SelectSelectorMode.DROPDOWN,
                         )

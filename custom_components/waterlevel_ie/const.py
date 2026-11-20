@@ -103,3 +103,11 @@ EA_STATIONS_URL = f"{EA_BASE_URL}/id/stations"
 EA_STATION_URL = f"{EA_BASE_URL}/id/stations/{{ref}}"
 EA_READINGS_URL = f"{EA_BASE_URL}/id/measures/{{measure}}/readings"
 EA_STATION_PAGE_URL = "https://check-for-flooding.service.gov.uk/station/{rloi_id}"
+
+# SEPA (Scotland) stations: the time series read, by SEPA's time series ids
+SOURCE_SEPA = "sepa"
+CONF_LEVEL_TS = "level_ts"
+CONF_FLOW_TS = "flow_ts"
+SEPA_BASE_URL = "https://timeseries.sepa.org.uk/KiWIS/KiWIS"
+# Sent with every request: the KiWIS service, as JSON
+SEPA_PARAMS = {"service": "kisters", "type": "queryServices", "datasource": "0", "format": "json"}

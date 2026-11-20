@@ -8,7 +8,8 @@
           "nearby": "Find stations near a location",
           "river": "Browse by river",
           "station_number": "Enter a station number",
-          "england": "Find stations in England (Environment Agency)"
+          "england": "Find stations in England (Environment Agency)",
+          "scotland": "Find stations in Scotland (SEPA)"
         }
       },
       "nearby": {
@@ -80,6 +81,26 @@
         "data_description": {
           "station": "The gauge station to add. Each station becomes its own device."
         }
+      },
+      "scotland": {
+        "title": "Find stations in Scotland",
+        "description": "Choose a location and search radius to look for SEPA river gauges. It starts at your home location.",
+        "data": {
+          "location": "Location"
+        },
+        "data_description": {
+          "location": "Drag the pin or change the circle to search a different area."
+        }
+      },
+      "scotland_station": {
+        "title": "Choose a station",
+        "description": "SEPA gauge stations in that area, closest first. Stations you have already added are not listed.",
+        "data": {
+          "station": "Station"
+        },
+        "data_description": {
+          "station": "The gauge station to add. Each station becomes its own device."
+        }
       }
     },
     "error": {
@@ -90,7 +111,9 @@
       "no_nearby_stations": "No stations that you haven't already added were found in that area. Try a larger radius.",
       "unknown": "Unexpected error. Check the Home Assistant logs.",
       "england_unreachable": "Could not reach the Environment Agency flood-monitoring service. Check your internet connection and try again.",
-      "england_station_not_found": "No water level data was found for that station."
+      "england_station_not_found": "No water level data was found for that station.",
+      "scotland_unreachable": "Could not reach SEPA's time series service. Check your internet connection and try again. SEPA limits anonymous requests each day, so it may also have reached its limit.",
+      "scotland_station_not_found": "No water level data was found for that station."
     },
     "abort": {
       "already_configured": "This station is already configured.",
