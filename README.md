@@ -7,6 +7,10 @@
 
 # Water Level IE for Home Assistant
 
+> [!IMPORTANT]
+> **This integration is no longer maintained. Use [Water Levels](https://github.com/macuistin/ha-waterlevels) instead.**
+> Water Levels is its successor. It covers the same Irish stations and adds stations in England and Scotland. To switch, open **HACS**, search for "Water Levels", download it, restart Home Assistant and add your stations again. Then remove Water Level IE. See the [Water Levels README](https://github.com/macuistin/ha-waterlevels#installation) for the install steps.
+
 [![HACS Custom](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://hacs.xyz/docs/faq/custom_repositories/)
 [![GitHub release](https://img.shields.io/github/v/release/macuistin/waterlevel-ie-ha)](https://github.com/macuistin/waterlevel-ie-ha/releases)
 [![Tests](https://github.com/macuistin/waterlevel-ie-ha/actions/workflows/tests.yml/badge.svg)](https://github.com/macuistin/waterlevel-ie-ha/actions/workflows/tests.yml)
